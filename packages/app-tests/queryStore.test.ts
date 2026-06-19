@@ -1297,7 +1297,9 @@ test("query result export fetches every paginated page", async () => {
       const body = JSON.parse(String(init?.body ?? "{}"));
       executedSqls.push(body.sql);
       timeoutSecs.push(body.timeoutSecs);
-      const rows = String(body.sql).includes("offset:0") ? Array.from({ length: 10_000 }, (_, index) => [index + 1]) : [[10_001], [10_002]];
+      const rows = String(body.sql).includes("offset:0")
+        ? Array.from({ length: 10_000 }, (_, index) => [index + 1])
+        : [[10_001], [10_002]];
       return new Response(JSON.stringify([{ columns: ["id"], rows, affected_rows: 0, execution_time_ms: 1 }]), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -1320,7 +1322,7 @@ test("query result export fetches every paginated page", async () => {
   }
 });
 
-test("query result export stops at the known query total", async () => {
+test("query result export treats the known query total as a progress estimate", async () => {
   const restoreStorage = installMemoryStorage();
   setActivePinia(createPinia());
   const connectionStore = useConnectionStore();
@@ -1334,7 +1336,7 @@ test("query result export stops at the known query total", async () => {
   const tabId = store.createTab("conn-1", "db");
   const tab = store.tabs.find((item) => item.id === tabId);
   assert.ok(tab);
-  tab.lastExecutedSql = "select id from users limit 5";
+  tab.lastExecutedSql = "select id from users";
   tab.resultBaseSql = tab.lastExecutedSql;
   tab.resultPageLimit = 100;
   tab.resultPageOffset = 0;
@@ -1357,8 +1359,8 @@ test("query result export stops at the known query total", async () => {
       preparedOffsets.push(offset);
       return new Response(
         JSON.stringify({
-          sqlToExecute: `select id from users limit 5 /* offset:${offset} */`,
-          pageSql: `select id from users limit 5 /* offset:${offset} */`,
+          sqlToExecute: `select id from users /* offset:${offset} */`,
+          pageSql: `select id from users /* offset:${offset} */`,
           pageLimit: limit,
           pageOffset: offset,
           useAgentResultSession: false,
@@ -1369,7 +1371,7 @@ test("query result export stops at the known query total", async () => {
     if (url === "/api/query/execute-multi") {
       const body = JSON.parse(String(init?.body ?? "{}"));
       executedSqls.push(body.sql);
-      const rows = Array.from({ length: 10_000 }, (_, index) => [index + 1]);
+      const rows = String(body.sql).includes("offset:0") ? Array.from({ length: 10_000 }, (_, index) => [index + 1]) : [[10_001], [10_002]];
       return new Response(JSON.stringify([{ columns: ["id"], rows, affected_rows: 0, execution_time_ms: 1 }]), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -1381,11 +1383,14 @@ test("query result export stops at the known query total", async () => {
   try {
     const exported = await store.fetchTabResultForExport(tabId, (info) => progress.push(info));
 
-    assert.deepEqual(preparedOffsets, [0]);
-    assert.deepEqual(executedSqls, ["select id from users limit 5 /* offset:0 */"]);
-    assert.equal(exported?.rows.length, 5);
-    assert.deepEqual(exported?.rows, [[1], [2], [3], [4], [5]]);
-    assert.deepEqual(progress, [{ rowsExported: 5, totalRows: 5 }]);
+    assert.deepEqual(preparedOffsets, [0, 10_000]);
+    assert.deepEqual(executedSqls, ["select id from users /* offset:0 */", "select id from users /* offset:10000 */"]);
+    assert.equal(exported?.rows.length, 10_002);
+    assert.deepEqual(exported?.rows.at(-1), [10_002]);
+    assert.deepEqual(progress, [
+      { rowsExported: 10_000, totalRows: 5 },
+      { rowsExported: 10_002, totalRows: 5 },
+    ]);
   } finally {
     globalThis.fetch = originalFetch;
     restoreStorage();

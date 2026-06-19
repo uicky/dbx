@@ -66,16 +66,6 @@ function markQueryResultRunsRowsRaw(resultRuns: NonNullable<QueryTab["resultRuns
   return resultRuns;
 }
 
-function appendExportRows(rows: QueryResult["rows"], pageRows: QueryResult["rows"], totalRows: number | null): void {
-  if (totalRows === null) {
-    rows.push(...pageRows);
-    return;
-  }
-  const remainingRows = Math.max(totalRows - rows.length, 0);
-  const rowsToAppend = pageRows.slice(0, remainingRows);
-  rows.push(...rowsToAppend);
-}
-
 async function withFrontendQueryTimeout<T>(promise: Promise<T>, timeoutSecs: number, message: string): Promise<T> {
   if (timeoutSecs === 0) return promise;
 
@@ -1985,10 +1975,10 @@ export const useQueryStore = defineStore("query", () => {
         const result = results[0];
         if (!result) break;
         if (columns.length === 0) columns = result.columns;
-        appendExportRows(rows, result.rows, totalRows);
+        rows.push(...result.rows);
         executionTimeMs += result.execution_time_ms ?? 0;
         onProgress?.({ rowsExported: rows.length, totalRows });
-        if ((totalRows !== null && rows.length >= totalRows) || result.rows.length < pageLimit) break;
+        if (result.rows.length < pageLimit) break;
         offset += result.rows.length;
       }
 
@@ -2048,12 +2038,12 @@ export const useQueryStore = defineStore("query", () => {
         const result = results[0];
         if (!result) break;
         if (columns.length === 0) columns = result.columns;
-        appendExportRows(rows, result.rows, totalRows);
+        rows.push(...result.rows);
         executionTimeMs += result.execution_time_ms ?? 0;
         onProgress?.({ rowsExported: rows.length, totalRows });
         sessionId = result.session_id ?? undefined;
         const shouldFetchNextPage = plan.useAgentResultSession ? result.has_more === true : result.rows.length >= plan.pageLimit;
-        if ((totalRows !== null && rows.length >= totalRows) || !shouldFetchNextPage) break;
+        if (!shouldFetchNextPage) break;
         offset += result.rows.length;
       }
     } finally {

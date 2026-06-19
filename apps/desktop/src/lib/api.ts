@@ -338,6 +338,7 @@ export const mongoDeleteDocuments = forward("mongoDeleteDocuments");
 
 // Elasticsearch
 export const elasticsearchListIndices = forward("elasticsearchListIndices");
+export const vectorListCollections = forward("vectorListCollections");
 
 // History
 export const saveHistory = forward("saveHistory");

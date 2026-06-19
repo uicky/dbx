@@ -90,6 +90,17 @@ fn builds_select_sql_with_limit_syntax_for_database_type() {
         }),
         "SELECT \"id\", \"name\" FROM \"DB2INST1\".\"USERS\" ORDER BY \"id\" ASC FETCH FIRST 100 ROWS ONLY"
     );
+    assert_eq!(
+        build_table_select_sql(TableSelectSqlOptions {
+            database_type: Some(DatabaseType::OceanbaseOracle),
+            schema: Some("DBXTEST"),
+            table_name: "USERS",
+            columns: &columns,
+            order_columns: &keys,
+            limit: 100,
+        }),
+        "SELECT \"id\", \"name\" FROM (SELECT \"id\", \"name\" FROM \"DBXTEST\".\"USERS\" ORDER BY \"id\" ASC) WHERE ROWNUM <= 100"
+    );
     // JDBC connections skip SQL-level row limiting — the JDBC agent handles
     // it via Statement.setMaxRows() which is universally supported.
     assert_eq!(
@@ -268,6 +279,38 @@ fn builds_table_data_where_and_schema_queries() {
             include_row_id: false,
         }),
         "SELECT * FROM \"DB2INST1\".\"ORDERS\" WHERE (amount > 10) FETCH FIRST 50 ROWS ONLY"
+    );
+    assert_eq!(
+        build_table_data_select_sql(TableDataSelectSqlOptions {
+            database_type: Some(DatabaseType::OceanbaseOracle),
+            schema: Some("DBXTEST".to_string()),
+            table_name: "ORDERS".to_string(),
+            primary_keys: Vec::new(),
+            columns: Vec::new(),
+            fallback_order_columns: Vec::new(),
+            order_by: None,
+            limit: Some(100),
+            offset: None,
+            where_input: None,
+            include_row_id: false,
+        }),
+        "SELECT * FROM (SELECT * FROM \"DBXTEST\".\"ORDERS\") WHERE ROWNUM <= 100"
+    );
+    assert_eq!(
+        build_table_data_select_sql(TableDataSelectSqlOptions {
+            database_type: Some(DatabaseType::OceanbaseOracle),
+            schema: Some("DBXTEST".to_string()),
+            table_name: "ORDERS".to_string(),
+            primary_keys: vec!["ID".to_string()],
+            columns: Vec::new(),
+            fallback_order_columns: Vec::new(),
+            order_by: None,
+            limit: Some(50),
+            offset: None,
+            where_input: Some("WHERE amount > 10".to_string()),
+            include_row_id: false,
+        }),
+        "SELECT * FROM (SELECT * FROM \"DBXTEST\".\"ORDERS\" WHERE (amount > 10) ORDER BY \"ID\" ASC) WHERE ROWNUM <= 50"
     );
     assert_eq!(
             build_table_data_select_sql(TableDataSelectSqlOptions {

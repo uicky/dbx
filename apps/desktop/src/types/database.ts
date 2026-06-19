@@ -11,6 +11,8 @@ export type DatabaseType =
   | "mongodb"
   | "oracle"
   | "elasticsearch"
+  | "qdrant"
+  | "milvus"
   | "doris"
   | "starrocks"
   | "manticoresearch"
@@ -438,6 +440,7 @@ export type TreeNodeType =
   | "etcd-root"
   | "mongo-db"
   | "mongo-collection"
+  | "vector-collection"
   | "elasticsearch-index";
 
 export interface ConnectionGroup {
@@ -540,7 +543,7 @@ export interface QueryTab {
   executionId?: string;
   isExplaining?: boolean;
   explainExecutionId?: string;
-  mode: "data" | "query" | "redis" | "mongo" | "etcd" | "mq" | "objects" | "structure" | "users";
+  mode: "data" | "query" | "redis" | "mongo" | "vector" | "etcd" | "mq" | "objects" | "structure" | "users";
   mqTenant?: string;
   structureTableName?: string;
   objectBrowser?: {

@@ -1300,6 +1300,10 @@ export async function elasticsearchListIndices(connectionId: string): Promise<st
   return mongoListCollections(connectionId, "default");
 }
 
+export async function vectorListCollections(connectionId: string): Promise<string[]> {
+  return mongoListCollections(connectionId, "default");
+}
+
 export async function mongoFindDocuments(connectionId: string, database: string, collection: string, skip: number, limit: number, filter?: string, sort?: string, executionId?: string): Promise<MongoDocumentResult> {
   return invoke("mongo_find_documents", { connectionId, database, collection, skip, limit, filter, sort, executionId });
 }

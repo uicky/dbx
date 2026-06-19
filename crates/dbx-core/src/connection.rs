@@ -67,6 +67,7 @@ pub enum PoolKind {
     ClickHouse(db::clickhouse_driver::ChClient),
     SqlServer(Arc<tokio::sync::Mutex<db::sqlserver::SqlServerClient>>),
     Elasticsearch(db::elasticsearch_driver::EsClient),
+    VectorDb(db::vector_driver::VectorClient),
     InfluxDb(db::influxdb_driver::InfluxdbClient),
     Agent(Arc<tokio::sync::Mutex<db::agent_driver::AgentDriverClient>>),
     ExternalTabular(ExternalTabularHandle),
@@ -600,6 +601,23 @@ impl AppState {
                 );
                 db::elasticsearch_driver::test_connection(&mut client, connect_timeout).await?;
                 PoolKind::Elasticsearch(client)
+            }
+            DatabaseType::Qdrant | DatabaseType::Milvus => {
+                let kind = match db_config.db_type {
+                    DatabaseType::Qdrant => db::vector_driver::VectorDbKind::Qdrant,
+                    DatabaseType::Milvus => db::vector_driver::VectorDbKind::Milvus,
+                    _ => unreachable!(),
+                };
+                let client = db::vector_driver::VectorClient::new(
+                    kind,
+                    &url,
+                    Some(&db_config.username),
+                    Some(&db_config.password),
+                    db_config.ssl,
+                    connect_timeout,
+                );
+                db::vector_driver::test_connection(&client, connect_timeout).await?;
+                PoolKind::VectorDb(client)
             }
             DatabaseType::InfluxDb => {
                 let username = if db_config.username.is_empty() { None } else { Some(db_config.username.clone()) };
@@ -1292,6 +1310,7 @@ enum KeepaliveTarget {
     ClickHouse(db::clickhouse_driver::ChClient),
     SqlServer(Arc<tokio::sync::Mutex<db::sqlserver::SqlServerClient>>),
     Elasticsearch(db::elasticsearch_driver::EsClient),
+    VectorDb(db::vector_driver::VectorClient),
     InfluxDb(db::influxdb_driver::InfluxdbClient),
 }
 
@@ -1308,6 +1327,7 @@ fn keepalive_target_from_pool(pool: &PoolKind, config: &ConnectionConfig) -> Opt
         PoolKind::ClickHouse(client) => Some(KeepaliveTarget::ClickHouse(client.clone())),
         PoolKind::SqlServer(client) => Some(KeepaliveTarget::SqlServer(client.clone())),
         PoolKind::Elasticsearch(client) => Some(KeepaliveTarget::Elasticsearch(client.clone())),
+        PoolKind::VectorDb(client) => Some(KeepaliveTarget::VectorDb(client.clone())),
         PoolKind::InfluxDb(client) => Some(KeepaliveTarget::InfluxDb(client.clone())),
         _ => None,
     }
@@ -1334,6 +1354,7 @@ async fn ping_keepalive_target(target: &mut KeepaliveTarget, timeout: Duration) 
             db::sqlserver::test_connection(&mut client).await
         }
         KeepaliveTarget::Elasticsearch(client) => db::elasticsearch_driver::test_connection(client, timeout).await,
+        KeepaliveTarget::VectorDb(client) => db::vector_driver::test_connection(client, timeout).await,
         KeepaliveTarget::InfluxDb(client) => db::influxdb_driver::test_connection(client, timeout).await,
     }
 }
@@ -1452,6 +1473,7 @@ pub async fn close_pool_kind(pool: PoolKind) {
         PoolKind::ClickHouse(_) => {}
         PoolKind::SqlServer(_) => {}
         PoolKind::Elasticsearch(_) => {}
+        PoolKind::VectorDb(_) => {}
         PoolKind::InfluxDb(_) => {}
         PoolKind::Agent(client) => {
             let mut client = client.lock().await;
@@ -1510,7 +1532,8 @@ fn base_pool_key_for(
 ) -> String {
     let is_single_connection_pool = db_type.as_ref().is_some_and(|db_type| {
         let is_single = database_capabilities::is_single_connection_pool(db_type)
-            || (include_elasticsearch_single_pool && *db_type == DatabaseType::Elasticsearch);
+            || (include_elasticsearch_single_pool
+                && matches!(db_type, DatabaseType::Elasticsearch | DatabaseType::Qdrant | DatabaseType::Milvus));
         is_single && (!database_capabilities::is_agent_type(db_type) || shares_database_pool_with_connection(db_type))
     });
 

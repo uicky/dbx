@@ -957,6 +957,15 @@ pub async fn do_execute(
                 .await
                 .map(|result| truncate_result_with_max_rows(result, max_rows))
         }
+        PoolKind::VectorDb(client) => {
+            let client = client.clone();
+            let sql = sql.to_string();
+            let max_rows = options.max_rows;
+            drop(connections);
+            wait_for_query_opt(cancel_token, query_timeout, db::vector_driver::execute_rest_query(&client, &sql))
+                .await
+                .map(|result| truncate_result_with_max_rows(result, max_rows))
+        }
         PoolKind::Redis(_) => Err("Use Redis-specific commands".to_string()),
         PoolKind::MongoDb(_) => Err("Use MongoDB-specific commands".to_string()),
         PoolKind::MessageQueue => Err("Use Message Queue-specific commands".to_string()),
@@ -1681,6 +1690,7 @@ pub async fn execute_statements_in_transaction(
             | PoolKind::Redis(_)
             | PoolKind::MongoDb(_)
             | PoolKind::Elasticsearch(_)
+            | PoolKind::VectorDb(_)
             | PoolKind::InfluxDb(_)
             | PoolKind::ExternalTabular(_)
             | PoolKind::ExternalDriver { .. } => TxPath::None,
@@ -1689,6 +1699,7 @@ pub async fn execute_statements_in_transaction(
             | PoolKind::Redis(_)
             | PoolKind::MongoDb(_)
             | PoolKind::Elasticsearch(_)
+            | PoolKind::VectorDb(_)
             | PoolKind::InfluxDb(_)
             | PoolKind::ExternalTabular(_)
             | PoolKind::ExternalDriver { .. } => TxPath::None,

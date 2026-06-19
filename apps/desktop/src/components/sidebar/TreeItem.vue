@@ -247,6 +247,8 @@ function getIconInfo(node: TreeNode): { icon: any; colorClass: string } | null {
       return { icon: Database, colorClass: "text-yellow-500" };
     case "mongo-collection":
       return { icon: Table, colorClass: "text-green-400" };
+    case "vector-collection":
+      return { icon: TableProperties, colorClass: "text-cyan-400" };
     case "elasticsearch-index":
       return { icon: Table, colorClass: "text-emerald-400" };
     case "procedure":
@@ -283,7 +285,7 @@ function getIconInfo(node: TreeNode): { icon: any; colorClass: string } | null {
 }
 
 const groupTypes: Set<TreeNodeType> = new Set(["group-columns", "group-indexes", "group-fkeys", "group-triggers", "group-tables", "group-views", "group-materialized-views", "group-procedures", "group-functions", "group-sequences", "group-packages", "group-partitions"]);
-const pinnableTypes: Set<TreeNodeType> = new Set(["connection-group", "database", "linked-server", "linked-server-catalog", "linked-server-schema", "schema", "table", "view", "materialized_view", "redis-db", "mongo-db", "mongo-collection", "elasticsearch-index"]);
+const pinnableTypes: Set<TreeNodeType> = new Set(["connection-group", "database", "linked-server", "linked-server-catalog", "linked-server-schema", "schema", "table", "view", "materialized_view", "redis-db", "mongo-db", "mongo-collection", "vector-collection", "elasticsearch-index"]);
 
 function isGroupLabel(node: TreeNode): boolean {
   return groupTypes.has(node.type);
@@ -299,7 +301,7 @@ function displayLabel(node: TreeNode): string {
 }
 
 function visibleLabel(node: TreeNode): string {
-  if (node.type === "table" || node.type === "view" || node.type === "materialized_view" || node.type === "mongo-collection" || node.type === "elasticsearch-index") {
+  if (node.type === "table" || node.type === "view" || node.type === "materialized_view" || node.type === "mongo-collection" || node.type === "vector-collection" || node.type === "elasticsearch-index") {
     return sidebarDisplayTableName(node.label, settingsStore.editorSettings.sidebarHiddenTablePrefixes);
   }
   return displayLabel(node);
@@ -335,6 +337,8 @@ function connectionTooltipScheme(config: Pick<ConnectionConfig, "db_type" | "ssl
     case "sqlserver":
       return "mssql";
     case "elasticsearch":
+    case "qdrant":
+    case "milvus":
     case "rqlite":
     case "turso":
     case "mq":
@@ -455,6 +459,8 @@ async function toggle() {
         await connectionStore.loadMongoDatabases(node.connectionId);
       } else if (config?.db_type === "elasticsearch") {
         await connectionStore.loadElasticsearchIndices(node.connectionId);
+      } else if (config?.db_type === "qdrant" || config?.db_type === "milvus") {
+        await connectionStore.loadVectorCollections(node.connectionId);
       } else if (config?.db_type === "mq") {
         await connectionStore.loadMqTenants(node.connectionId);
       } else {
@@ -478,6 +484,9 @@ async function toggle() {
       queryStore.updateSql(tab, node.label);
     } else if (node.type === "elasticsearch-index" && node.connectionId) {
       const tab = queryStore.createTab(node.connectionId, node.database || "default", node.label, "mongo");
+      queryStore.updateSql(tab, node.label);
+    } else if (node.type === "vector-collection" && node.connectionId) {
+      const tab = queryStore.createTab(node.connectionId, node.database || "default", node.label, "vector");
       queryStore.updateSql(tab, node.label);
     } else if (node.type === "database" && node.connectionId && hasTreeNodeDatabaseContext(node)) {
       const config = connectionStore.getConfig(node.connectionId);
@@ -2722,7 +2731,9 @@ const hasTypeMenu = computed(() => {
   return t === "connection" || t === "database" || t === "schema" || t === "table" || t === "view" || t === "column" || t === "procedure" || t === "function" || t === "package" || t === "package-body" || isGroupLabel(props.node);
 });
 const columnComment = computed(() => (!settingsStore.editorSettings.sidebarHideTableComments && props.node.type === "column" && props.node.meta && "comment" in props.node.meta ? (props.node.meta as any).comment : null));
-const tableComment = computed(() => (!settingsStore.editorSettings.sidebarHideTableComments && (props.node.type === "table" || props.node.type === "view" || props.node.type === "mongo-collection" || props.node.type === "elasticsearch-index") && props.node.comment ? props.node.comment : null));
+const tableComment = computed(() =>
+  !settingsStore.editorSettings.sidebarHideTableComments && (props.node.type === "table" || props.node.type === "view" || props.node.type === "mongo-collection" || props.node.type === "vector-collection" || props.node.type === "elasticsearch-index") && props.node.comment ? props.node.comment : null,
+);
 const paddingLeft = computed(() => treeItemPaddingLeft(props.depth));
 const isConnected = computed(() => props.node.type === "connection" && !!props.node.connectionId && connectionStore.connectedIds.has(props.node.connectionId));
 const isConnectionReadonly = computed(() => props.node.type === "connection" && !!props.node.connectionId && (connectionStore.getConfig(props.node.connectionId)?.read_only ?? false));
@@ -2735,7 +2746,7 @@ const nodeIconClass = computed(() => {
 const canConfigureVisibleDatabases = computed(() => {
   if (props.node.type !== "connection" || !props.node.connectionId) return false;
   const dbType = connectionStore.getConfig(props.node.connectionId)?.db_type;
-  return dbType !== "elasticsearch" && dbType !== "etcd" && dbType !== "mq";
+  return dbType !== "elasticsearch" && dbType !== "qdrant" && dbType !== "milvus" && dbType !== "etcd" && dbType !== "mq";
 });
 const canCopyFinalProxyPort = computed(() => {
   if (props.node.type !== "connection" || !props.node.connectionId) return false;
@@ -3325,7 +3336,7 @@ function treeItemMenuItems(): ContextMenuItem[] {
     return items;
   }
 
-  if (node.type === "elasticsearch-index") {
+  if (node.type === "elasticsearch-index" || node.type === "vector-collection") {
     items.push({ label: t("contextMenu.copyName"), action: copyName, icon: Copy, shortcut: shortcutCopyName.value });
     items.push({ label: "", separator: true });
     items.push({ label: t("contextMenu.viewData"), action: toggle, icon: TableProperties });

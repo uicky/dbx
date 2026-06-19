@@ -82,6 +82,10 @@ pub fn build_table_data_select_sql(options: TableDataSelectSqlOptions) -> String
         );
     }
 
+    if database_type == Some(DatabaseType::OceanbaseOracle) {
+        return build_oceanbase_oracle_table_select_sql(&table_alias, &where_clause, &order, &select_columns, limit);
+    }
+
     if database_type == Some(DatabaseType::Oracle) {
         return format!("SELECT {select_columns} FROM {table_alias}{where_clause}{order}");
     }
@@ -165,6 +169,11 @@ pub fn build_table_select_sql(options: TableSelectSqlOptions<'_>) -> String {
         return format!("SELECT FIRST {limit} {select_columns} FROM {table}{order_by}");
     }
 
+    if database_type == Some(DatabaseType::OceanbaseOracle) {
+        let inner_select = format!("SELECT {select_columns} FROM {table}{order_by}");
+        return format!("SELECT {select_columns} FROM ({inner_select}) WHERE ROWNUM <= {limit}");
+    }
+
     if database_type.is_some_and(uses_fetch_first) {
         return format!("SELECT {select_columns} FROM {table}{order_by} FETCH FIRST {limit} ROWS ONLY");
     }
@@ -187,6 +196,17 @@ fn informix_row_limit_clause(limit: usize, offset: usize) -> String {
     } else {
         format!("FIRST {limit}")
     }
+}
+
+fn build_oceanbase_oracle_table_select_sql(
+    table: &str,
+    where_clause: &str,
+    order: &str,
+    select_columns: &str,
+    limit: usize,
+) -> String {
+    let inner_select = format!("SELECT {select_columns} FROM {table}{where_clause}{order}");
+    format!("SELECT {select_columns} FROM ({inner_select}) WHERE ROWNUM <= {limit}")
 }
 
 pub(super) fn is_oracle_row_id(database_type: Option<DatabaseType>, name: &str) -> bool {

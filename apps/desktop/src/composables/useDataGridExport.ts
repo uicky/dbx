@@ -44,7 +44,7 @@ export interface UseDataGridExportOptions {
   getRowItem: (rowId: number) => RowItem | undefined;
   selectedRowIds: Ref<Set<number>> | ComputedRef<Set<number>>;
   hasRowSelection: ComputedRef<boolean>;
-  fullExportResult?: () => Promise<QueryResult | undefined>;
+  fullExportResult?: (onProgress?: (info: { rowsExported: number; totalRows: number | null }) => void) => Promise<QueryResult | undefined>;
   exportProgressDialog?: Ref<boolean>;
   exportProgressState?: Ref<{
     title: string;
@@ -128,9 +128,9 @@ export function useDataGridExport(options: UseDataGridExportOptions) {
     return displayItems.value.filter((item) => rowIdSet.has(item.id));
   }
 
-  async function resultToExport(rowIds?: number[]): Promise<{ columns: string[]; rows: CellValue[][] }> {
+  async function resultToExport(rowIds?: number[], onProgress?: (info: { rowsExported: number; totalRows: number | null }) => void): Promise<{ columns: string[]; rows: CellValue[][] }> {
     if (!rowIds?.length && fullExportResult) {
-      const result = await fullExportResult();
+      const result = await fullExportResult(onProgress);
       if (result) return { columns: result.columns, rows: result.rows };
     }
     return {
@@ -472,13 +472,29 @@ export function useDataGridExport(options: UseDataGridExportOptions) {
           };
           exportProgressDialog.value = true;
         }
-        const result = await resultToExport(rowIds);
-        const rows = result.rows.map((row) => row.map((c) => displayCellValue(c)));
+        const result = await resultToExport(rowIds, (info) => {
+          if (needsFullExport && exportProgressState && exportProgressState.value.status === "Running") {
+            // Guard against the COUNT estimate being too low: if the real
+            // fetched count exceeds it, bump totalRows so the progress bar
+            // never shows 100 % while data is still being fetched.
+            const adjustedTotal = info.totalRows !== null && info.rowsExported > info.totalRows ? info.rowsExported : info.totalRows;
+            exportProgressState.value = {
+              ...exportProgressState.value,
+              rowsExported: info.rowsExported,
+              totalRows: adjustedTotal,
+            };
+          }
+        });
+        // Hand the raw rows straight to the Rust command. Formatting (NULL→"",
+        // bool/number→text, etc.) happens there on a spawn_blocking thread, so
+        // we avoid mapping every cell synchronously on the UI thread.
+        const rows = result.rows;
         if (needsFullExport && exportProgressState) {
           exportProgressState.value = {
             ...exportProgressState.value,
             status: "Writing",
             rowsExported: result.rows.length,
+            totalRows: result.rows.length,
           };
         }
         let outputPath = "export.csv";
@@ -593,12 +609,22 @@ export function useDataGridExport(options: UseDataGridExportOptions) {
           };
           exportProgressDialog.value = true;
         }
-        const result = await resultToExport(rowIds);
+        const result = await resultToExport(rowIds, (info) => {
+          if (needsFullExport && exportProgressState && exportProgressState.value.status === "Running") {
+            const adjustedTotal = info.totalRows !== null && info.rowsExported > info.totalRows ? info.rowsExported : info.totalRows;
+            exportProgressState.value = {
+              ...exportProgressState.value,
+              rowsExported: info.rowsExported,
+              totalRows: adjustedTotal,
+            };
+          }
+        });
         if (needsFullExport && exportProgressState) {
           exportProgressState.value = {
             ...exportProgressState.value,
             status: "Writing",
             rowsExported: result.rows.length,
+            totalRows: result.rows.length,
           };
         }
         await api.exportQueryResultXlsx(outputPath, tableMeta.value?.tableName || "Export", result.columns, result.rows);

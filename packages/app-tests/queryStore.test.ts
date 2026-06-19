@@ -1320,6 +1320,78 @@ test("query result export fetches every paginated page", async () => {
   }
 });
 
+test("query result export stops at the known query total", async () => {
+  const restoreStorage = installMemoryStorage();
+  setActivePinia(createPinia());
+  const connectionStore = useConnectionStore();
+  const store = useQueryStore();
+  const originalFetch = globalThis.fetch;
+  const preparedOffsets: number[] = [];
+  const executedSqls: string[] = [];
+  const progress: Array<{ rowsExported: number; totalRows: number | null }> = [];
+
+  connectionStore.addEphemeralConnection(conn("conn-1"));
+  const tabId = store.createTab("conn-1", "db");
+  const tab = store.tabs.find((item) => item.id === tabId);
+  assert.ok(tab);
+  tab.lastExecutedSql = "select id from users limit 5";
+  tab.resultBaseSql = tab.lastExecutedSql;
+  tab.resultPageLimit = 100;
+  tab.resultPageOffset = 0;
+  tab.resultTotalRowCount = 5;
+  tab.result = {
+    columns: ["id"],
+    rows: [[1], [2], [3], [4], [5]],
+    affected_rows: 0,
+    execution_time_ms: 1,
+    truncated: false,
+    has_more: true,
+  };
+
+  globalThis.fetch = (async (input, init) => {
+    const url = String(input);
+    if (url === "/api/query/prepare-pagination-plan") {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      const offset = Number(body.options.pagination.offset);
+      const limit = Number(body.options.pagination.limit);
+      preparedOffsets.push(offset);
+      return new Response(
+        JSON.stringify({
+          sqlToExecute: `select id from users limit 5 /* offset:${offset} */`,
+          pageSql: `select id from users limit 5 /* offset:${offset} */`,
+          pageLimit: limit,
+          pageOffset: offset,
+          useAgentResultSession: false,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (url === "/api/query/execute-multi") {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      executedSqls.push(body.sql);
+      const rows = Array.from({ length: 10_000 }, (_, index) => [index + 1]);
+      return new Response(JSON.stringify([{ columns: ["id"], rows, affected_rows: 0, execution_time_ms: 1 }]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return new Response("unexpected request", { status: 500 });
+  }) as typeof fetch;
+
+  try {
+    const exported = await store.fetchTabResultForExport(tabId, (info) => progress.push(info));
+
+    assert.deepEqual(preparedOffsets, [0]);
+    assert.deepEqual(executedSqls, ["select id from users limit 5 /* offset:0 */"]);
+    assert.equal(exported?.rows.length, 5);
+    assert.deepEqual(exported?.rows, [[1], [2], [3], [4], [5]]);
+    assert.deepEqual(progress, [{ rowsExported: 5, totalRows: 5 }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreStorage();
+  }
+});
+
 test("jdbc query pagination uses result sessions without capping max rows to one page", async () => {
   const restoreStorage = installMemoryStorage();
   setActivePinia(createPinia());

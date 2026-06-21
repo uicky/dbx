@@ -86,7 +86,7 @@ let latestViewport: { scrollTop: number; scrollLeft: number } | undefined = prop
 let latestSelection: { anchor: number; head: number } | undefined = props.initialSelection;
 const connectionStore = useConnectionStore();
 const settingsStore = useSettingsStore();
-const { isDark } = useTheme();
+const { isDark, themeMode } = useTheme();
 const { t } = useI18n();
 const { toast } = useToast();
 
@@ -206,6 +206,7 @@ let pendingImeModelEmit = false;
 const tableNavigationHoverClass = "query-editor--table-navigation-hover";
 
 function editorThemeAppearance() {
+  if (themeMode.value === "amber-paper") return "amber-paper";
   return isDark.value ? "dark" : "light";
 }
 
@@ -2185,7 +2186,7 @@ function getCurrentCustomThemeColors() {
 
 // Reactively apply editor settings changes
 watch(
-  [() => settingsStore.editorSettings, () => isDark.value],
+  [() => settingsStore.editorSettings, () => isDark.value, () => themeMode.value],
   async ([ss]) => {
     if (!view.value || !codeMirrorTheme || !fontThemeComp || !wordWrapComp || !runKeymapComp || !editorViewModule) {
       return;

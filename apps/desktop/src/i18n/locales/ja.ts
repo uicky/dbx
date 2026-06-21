@@ -41,6 +41,7 @@ export default {
     theme: "テーマ",
     themeLight: "ライト",
     themeDark: "ダーク",
+    themeAmberPaper: "アイケア",
     themeSystem: "システム設定に従う",
     sqlSaved: "SQLを保存しました",
     sqlOpenFailed: "ファイルを開けませんでした: {message}",

@@ -1,4 +1,4 @@
-import type { AppThemeAppearance } from "@/lib/appTheme";
+import { resolveAppThemeColorScheme, type AppThemeAppearance } from "@/lib/appTheme";
 
 export type RedisJsonHighlighter = (content: string, appearance?: AppThemeAppearance) => string;
 
@@ -21,7 +21,7 @@ export async function createRedisShikiJsonHighlighter(options: RedisShikiJsonHig
     highlighter.codeToHtml(content, {
       lang: "json",
       structure: "inline",
-      theme: SHIKI_THEMES[appearance],
+      theme: SHIKI_THEMES[resolveAppThemeColorScheme(appearance)],
     });
 }
 

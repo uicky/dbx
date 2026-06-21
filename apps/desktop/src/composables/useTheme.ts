@@ -5,7 +5,8 @@ import { isTauriRuntime } from "@/lib/tauriRuntime";
 
 const themeMode = ref<AppThemeMode>(normalizeAppThemeMode(safeLocalStorageGet(APP_THEME_STORAGE_KEY)));
 const systemPrefersDark = ref(readSystemPrefersDark());
-const isDark = computed(() => resolveAppThemeAppearance(themeMode.value, systemPrefersDark.value) === "dark");
+const appAppearance = computed(() => (themeMode.value === "amber-paper" ? "amber-paper" : resolveAppThemeAppearance(themeMode.value, systemPrefersDark.value)));
+const isDark = computed(() => appAppearance.value === "dark");
 
 let mediaQuery: MediaQueryList | null = null;
 let isListeningForSystemTheme = false;
@@ -33,9 +34,11 @@ function applyTheme() {
 
   const doc = document.documentElement;
   const dark = isDark.value;
+  const amberPaper = themeMode.value === "amber-paper";
 
   doc.classList.add("disable-transitions");
   doc.classList.toggle("dark", dark);
+  doc.classList.toggle("amber-paper", amberPaper);
   doc.style.colorScheme = dark ? "dark" : "light";
 
   // force reflow so the class toggle takes effect before re-enabling transitions
@@ -72,5 +75,5 @@ export function useTheme() {
     setThemeMode(isDark.value ? "light" : "dark");
   }
 
-  return { isDark, themeMode, applyTheme, setThemeMode, toggleTheme };
+  return { appAppearance, isDark, themeMode, applyTheme, setThemeMode, toggleTheme };
 }

@@ -525,7 +525,7 @@ defineExpose({ focusSearch, refreshData, handleModRTarget, requestQueryEditorExe
 </script>
 
 <template>
-  <div class="flex flex-col flex-1 min-h-0">
+  <div class="app-content-area flex flex-col flex-1 min-h-0">
     <!-- Query mode: editor + results -->
     <template v-if="activeTab.mode === 'query'">
       <Splitpanes horizontal class="query-output-splitpanes flex-1 min-h-0 overflow-hidden">

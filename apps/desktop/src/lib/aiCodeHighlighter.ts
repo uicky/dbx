@@ -1,4 +1,4 @@
-import type { AppThemeAppearance } from "@/lib/appTheme";
+import { resolveAppThemeColorScheme, type AppThemeAppearance } from "@/lib/appTheme";
 
 export type AiCodeHighlighter = (content: string, lang: string, appearance?: AppThemeAppearance) => string;
 
@@ -54,7 +54,7 @@ export async function createAiShikiCodeHighlighter(options: AiShikiCodeHighlight
     highlighter.codeToHtml(content, {
       lang: resolveShikiLanguage(lang),
       structure: "inline",
-      theme: SHIKI_THEMES[appearance],
+      theme: SHIKI_THEMES[resolveAppThemeColorScheme(appearance)],
     });
 }
 

@@ -147,7 +147,7 @@ const SqlPreviewPanel = defineAsyncComponent(() => import("@/components/editor/S
 const { t } = useI18n();
 const slots = useSlots();
 const settingsStore = useSettingsStore();
-const { isDark } = useTheme();
+const { isDark, themeMode } = useTheme();
 const { toast } = useToast();
 const { highlight } = useSqlHighlighter();
 const binaryCellDownloadMenuItems = computed(() =>
@@ -3488,7 +3488,7 @@ let detailsDetailEditor: UseCellDetailEditorReturn | null = null;
 let valueDetailEditor: UseCellDetailEditorReturn | null = null;
 
 const editorThemeAccessor = () => settingsStore.editorSettings.theme;
-const editorAppAppearance = () => (isDark.value ? "dark" : "light") as import("@/lib/appTheme").AppThemeAppearance;
+const editorAppAppearance = () => (themeMode.value === "amber-paper" ? "amber-paper" : isDark.value ? "dark" : "light") as import("@/lib/appTheme").AppThemeAppearance;
 const editorFontSize = () => settingsStore.editorSettings.fontSize;
 const editorFontFamily = () => settingsStore.editorSettings.fontFamily;
 

@@ -39,6 +39,7 @@ export default {
     theme: "主題",
     themeLight: "亮色",
     themeDark: "暗色",
+    themeAmberPaper: "護眼",
     themeSystem: "跟隨系統",
     sqlSaved: "SQL 已儲存",
     sqlOpenFailed: "開啟檔案失敗：{message}",

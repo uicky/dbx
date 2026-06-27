@@ -11,10 +11,17 @@ export interface SqlTextRange {
   sql: string;
 }
 
-const NON_SQL_EXECUTION_TARGET_TYPES: ReadonlySet<DatabaseType> = new Set(["mongodb", "elasticsearch", "qdrant", "milvus", "etcd", "mq", "neo4j"]);
+const NON_SQL_EXECUTION_TARGET_TYPES: ReadonlySet<DatabaseType> = new Set(["mongodb", "elasticsearch", "qdrant", "milvus", "weaviate", "chromadb", "etcd", "zookeeper", "mq", "neo4j"]);
 
 export function supportsExecutionTargetPicker(databaseType?: DatabaseType): boolean {
   return !!databaseType && (databaseType === "redis" || !NON_SQL_EXECUTION_TARGET_TYPES.has(databaseType));
+}
+
+export function hasMultipleExecutionTargets(sql: string, databaseType?: DatabaseType): boolean {
+  if (databaseType === "redis") {
+    return redisExecutableCommandCount(sql) > 1;
+  }
+  return splitSqlStatementRanges(sql).length > 1;
 }
 
 interface RawStatement {
@@ -81,8 +88,11 @@ const DATABASE_SOFT_STATEMENT_KEYWORDS: Partial<Record<DatabaseType, readonly st
   elasticsearch: [],
   qdrant: [],
   milvus: [],
+  weaviate: [],
+  chromadb: [],
   mq: [],
   etcd: [],
+  zookeeper: [],
 };
 
 const WITH_MAIN_STATEMENT_KEYWORDS = new Set(["SELECT", "INSERT", "UPDATE", "DELETE", "MERGE"]);
@@ -301,6 +311,11 @@ export function statementRangeAtCursor(sql: string, cursorPos: number, databaseT
     // the statement should still target that statement, while the returned
     // execution range remains tight around the SQL text itself.
     if (pos >= statement.hitFrom && pos < statement.from && sql.slice(pos, statement.from).trim() === "") {
+      const previous = statements[index - 1];
+      if (previous && isCursorInSameLineDelimiterGap(sql, previous.to, pos)) {
+        const previousSoftRanges = splitStatementRangeAtSoftStarts(sql, previous, databaseType);
+        return rangeForCursorInSoftRanges(sql, previousSoftRanges, pos) ?? rangeFor(previous, sql);
+      }
       return rangeForCursorInSoftRanges(sql, softRanges, pos) ?? rangeFor(statement, sql);
     }
 
@@ -311,6 +326,15 @@ export function statementRangeAtCursor(sql: string, cursorPos: number, databaseT
   }
 
   return null;
+}
+
+function isCursorInSameLineDelimiterGap(sql: string, previousStatementEnd: number, cursorPos: number): boolean {
+  if (cursorPos <= previousStatementEnd) return false;
+  const between = sql.slice(previousStatementEnd, cursorPos);
+  const delimiterIndex = between.lastIndexOf(";");
+  if (delimiterIndex === -1) return false;
+  const afterDelimiter = between.slice(delimiterIndex + 1);
+  return !afterDelimiter.includes("\n") && between.slice(0, delimiterIndex).trim() === "" && afterDelimiter.trim() === "";
 }
 
 function rangeForCursorInSoftRanges(sql: string, ranges: RawStatement[], pos: number): SqlTextRange | null {
@@ -823,6 +847,17 @@ function candidateFromRange(range: SqlTextRange, kind: SqlExecutionCandidate["ki
     from: range.from,
     to: range.to,
   };
+}
+
+function redisExecutableCommandCount(sql: string): number {
+  let count = 0;
+  for (const line of sql.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    count += 1;
+    if (count > 1) return count;
+  }
+  return count;
 }
 
 function redisCommandRangeAtCursor(sql: string, cursorPos: number): SqlTextRange | null {

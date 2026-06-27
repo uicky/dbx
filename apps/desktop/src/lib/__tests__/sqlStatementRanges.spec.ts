@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildExecutionCandidates, fullSqlRange, splitSqlStatementRanges, statementRangeAtCursor, supportsExecutionTargetPicker } from "../sqlStatementRanges";
+import { buildExecutionCandidates, fullSqlRange, hasMultipleExecutionTargets, splitSqlStatementRanges, statementRangeAtCursor, supportsExecutionTargetPicker } from "../sqlStatementRanges";
 
 function indexOf(sql: string, needle: string, occurrence = 1): number {
   let from = 0;
@@ -108,10 +108,24 @@ describe("statementRangeAtCursor", () => {
     expect(range?.sql.trim()).toBe("SELECT 2");
   });
 
-  it("returns the next same-line statement when the cursor is in whitespace before it", () => {
+  it("returns the previous statement when the cursor is in same-line whitespace after its semicolon", () => {
     const sql = "SELECT 1;   SELECT 2;";
     const gapPos = sql.indexOf(";") + 2;
     const range = statementRangeAtCursor(sql, gapPos);
+    expect(range?.sql.trim()).toBe("SELECT 1");
+  });
+
+  it("returns the previous statement when the cursor is just after its semicolon before a later statement", () => {
+    const sql = "SELECT *\nFROM system_dept;\n\nSELECT *\nFROM sys;";
+    const gapPos = sql.indexOf(";") + 1;
+    const range = statementRangeAtCursor(sql, gapPos);
+    expect(range?.sql.trim()).toBe("SELECT *\nFROM system_dept");
+  });
+
+  it("returns the next same-line statement when the cursor is inside it", () => {
+    const sql = "SELECT 1;   SELECT 2;";
+    const pos = indexOf(sql, "SELECT 2") + 1;
+    const range = statementRangeAtCursor(sql, pos);
     expect(range?.sql.trim()).toBe("SELECT 2");
   });
 
@@ -285,6 +299,25 @@ describe("buildExecutionCandidates", () => {
   });
 });
 
+describe("hasMultipleExecutionTargets", () => {
+  it("returns false for a single SQL statement", () => {
+    expect(hasMultipleExecutionTargets("SELECT 1;")).toBe(false);
+  });
+
+  it("returns true for multiple SQL statements", () => {
+    expect(hasMultipleExecutionTargets("SELECT 1;\nSELECT 2;")).toBe(true);
+  });
+
+  it("ignores comments when counting SQL statements", () => {
+    expect(hasMultipleExecutionTargets("-- check one thing\nSELECT 1;")).toBe(false);
+  });
+
+  it("counts executable Redis command lines", () => {
+    expect(hasMultipleExecutionTargets("GET user:1", "redis")).toBe(false);
+    expect(hasMultipleExecutionTargets("GET user:1\n# comment\nDEL user:2", "redis")).toBe(true);
+  });
+});
+
 describe("supportsExecutionTargetPicker", () => {
   it("enables the picker for SQL database connections and Redis", () => {
     expect(supportsExecutionTargetPicker("mysql")).toBe(true);
@@ -297,7 +330,10 @@ describe("supportsExecutionTargetPicker", () => {
     expect(supportsExecutionTargetPicker("elasticsearch")).toBe(false);
     expect(supportsExecutionTargetPicker("qdrant")).toBe(false);
     expect(supportsExecutionTargetPicker("milvus")).toBe(false);
+    expect(supportsExecutionTargetPicker("weaviate")).toBe(false);
+    expect(supportsExecutionTargetPicker("chromadb")).toBe(false);
     expect(supportsExecutionTargetPicker("etcd")).toBe(false);
+    expect(supportsExecutionTargetPicker("zookeeper")).toBe(false);
     expect(supportsExecutionTargetPicker("mq")).toBe(false);
     expect(supportsExecutionTargetPicker("neo4j")).toBe(false);
     expect(supportsExecutionTargetPicker(undefined)).toBe(false);

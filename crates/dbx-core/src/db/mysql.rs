@@ -5,7 +5,7 @@ use mysql_async::prelude::*;
 use percent_encoding::percent_decode_str;
 use rust_decimal::Decimal;
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
@@ -49,6 +49,14 @@ fn quote_value(s: &str) -> String {
 
 fn quote_identifier(s: &str) -> String {
     format!("`{}`", s.replace('`', "``"))
+}
+
+fn quote_table_ref(database: &str, table: &str) -> String {
+    if database.trim().is_empty() {
+        quote_identifier(table)
+    } else {
+        format!("{}.{}", quote_identifier(database), quote_identifier(table))
+    }
 }
 
 fn row_get<T, I>(row: &mysql_async::Row, index: I) -> Option<T>
@@ -2573,6 +2581,305 @@ pub async fn list_indexes(pool: &MySqlPool, database: &str, table: &str) -> Resu
         .collect())
 }
 
+pub async fn list_doris_family_indexes(
+    pool: &MySqlPool,
+    database: &str,
+    table: &str,
+) -> Result<Vec<IndexInfo>, String> {
+    let statistics_result = list_indexes(pool, database, table).await;
+    let mut indexes = match &statistics_result {
+        Ok(indexes) => indexes.clone(),
+        Err(err) => {
+            log::debug!(
+                "Falling back to SHOW CREATE TABLE for Doris-family indexes on `{database}`.`{table}` after information_schema.STATISTICS failed: {err}"
+            );
+            Vec::new()
+        }
+    };
+
+    match show_create_table_ddl(pool, database, table).await {
+        Ok(ddl) => {
+            merge_index_infos(&mut indexes, doris_indexes_from_create_table_ddl(&ddl));
+            Ok(indexes)
+        }
+        Err(ddl_err) => {
+            if indexes.is_empty() {
+                if let Err(statistics_err) = statistics_result {
+                    return Err(format!(
+                        "{statistics_err}; SHOW CREATE TABLE fallback failed for Doris-family indexes: {ddl_err}"
+                    ));
+                }
+            }
+            Ok(indexes)
+        }
+    }
+}
+
+pub async fn show_create_table_ddl(pool: &MySqlPool, database: &str, table: &str) -> Result<String, String> {
+    let sql = format!("SHOW CREATE TABLE {}", quote_table_ref(database, table));
+    let mut conn = get_conn_with_health_check(pool).await?;
+    let result = conn.query_iter(&sql).await.map_err(|e| e.to_string())?;
+    let rows: Vec<mysql_async::Row> = result.collect_and_drop().await.map_err(|e| e.to_string())?;
+    let row = rows.first().ok_or("DDL not found")?;
+    row.get_opt::<String, usize>(1)
+        .and_then(|result| result.ok())
+        .or_else(|| {
+            row.get_opt::<Vec<u8>, usize>(1)
+                .and_then(|result| result.ok())
+                .map(|b| String::from_utf8_lossy(&b).to_string())
+        })
+        .ok_or_else(|| "Failed to read DDL".to_string())
+}
+
+fn merge_index_infos(target: &mut Vec<IndexInfo>, parsed: Vec<IndexInfo>) {
+    let mut seen_names: HashSet<String> = target.iter().map(|index| index.name.to_ascii_lowercase()).collect();
+    for index in parsed {
+        if index.columns.is_empty() {
+            continue;
+        }
+        if seen_names.contains(&index.name.to_ascii_lowercase())
+            || target.iter().any(|existing| {
+                existing.is_unique == index.is_unique
+                    && existing.is_primary == index.is_primary
+                    && existing.columns == index.columns
+            })
+        {
+            continue;
+        }
+        seen_names.insert(index.name.to_ascii_lowercase());
+        target.push(index);
+    }
+}
+
+fn doris_indexes_from_create_table_ddl(ddl: &str) -> Vec<IndexInfo> {
+    let mut indexes = Vec::new();
+    for raw_line in ddl.lines() {
+        let line = trim_ddl_definition_line(raw_line);
+        if line.is_empty() {
+            continue;
+        }
+        let upper = line.to_ascii_uppercase();
+        if upper.starts_with("PRIMARY KEY") {
+            if let Some(index) = doris_table_key_index("PRIMARY", line, true, true, "PRIMARY KEY") {
+                indexes.push(index);
+            }
+        } else if upper.starts_with("UNIQUE KEY") {
+            if let Some(index) = doris_table_key_index("UNIQUE KEY", line, true, false, "UNIQUE KEY") {
+                indexes.push(index);
+            }
+        } else if upper.starts_with("INDEX ") {
+            if let Some(index) = doris_secondary_index(line) {
+                indexes.push(index);
+            }
+        }
+    }
+    indexes
+}
+
+fn trim_ddl_definition_line(line: &str) -> &str {
+    let mut trimmed = line.trim();
+    if let Some(rest) = trimmed.strip_prefix(',') {
+        trimmed = rest.trim_start();
+    }
+    while let Some(rest) = trimmed.strip_suffix(',') {
+        trimmed = rest.trim_end();
+    }
+    trimmed
+}
+
+fn doris_table_key_index(
+    name: &str,
+    line: &str,
+    is_unique: bool,
+    is_primary: bool,
+    index_type: &str,
+) -> Option<IndexInfo> {
+    let columns = parse_mysql_index_columns(first_parenthesized_content(line)?);
+    if columns.is_empty() {
+        return None;
+    }
+    Some(IndexInfo {
+        name: name.to_string(),
+        columns,
+        is_unique,
+        is_primary,
+        filter: None,
+        index_type: Some(index_type.to_string()),
+        included_columns: None,
+        comment: None,
+    })
+}
+
+fn doris_secondary_index(line: &str) -> Option<IndexInfo> {
+    let (_, rest) = split_keyword_prefix(line, "INDEX")?;
+    let (name, after_name) = read_mysql_identifier(rest.trim_start())?;
+    let columns = parse_mysql_index_columns(first_parenthesized_content(after_name)?);
+    if columns.is_empty() {
+        return None;
+    }
+    Some(IndexInfo {
+        name,
+        columns,
+        is_unique: false,
+        is_primary: false,
+        filter: None,
+        index_type: mysql_keyword_argument(after_name, "USING").or_else(|| Some("INDEX".to_string())),
+        included_columns: None,
+        comment: mysql_quoted_string_argument(after_name, "COMMENT"),
+    })
+}
+
+fn split_keyword_prefix<'a>(line: &'a str, keyword: &str) -> Option<(&'a str, &'a str)> {
+    if line.len() < keyword.len() || !line[..keyword.len()].eq_ignore_ascii_case(keyword) {
+        return None;
+    }
+    let rest = &line[keyword.len()..];
+    if !rest.is_empty() && is_mysql_identifier_byte(rest.as_bytes()[0]) {
+        return None;
+    }
+    Some((&line[..keyword.len()], rest))
+}
+
+fn read_mysql_identifier(input: &str) -> Option<(String, &str)> {
+    let input = input.trim_start();
+    if input.is_empty() {
+        return None;
+    }
+    let bytes = input.as_bytes();
+    if bytes[0] == b'`' {
+        let mut i = 1;
+        let mut value = String::new();
+        while i < bytes.len() {
+            if bytes[i] == b'`' {
+                if i + 1 < bytes.len() && bytes[i + 1] == b'`' {
+                    value.push('`');
+                    i += 2;
+                    continue;
+                }
+                return Some((value, &input[i + 1..]));
+            }
+            let ch = input[i..].chars().next()?;
+            value.push(ch);
+            i += ch.len_utf8();
+        }
+        return None;
+    }
+
+    let end = input.find(|ch: char| ch.is_whitespace() || matches!(ch, '(' | ')' | ',')).unwrap_or(input.len());
+    if end == 0 {
+        return None;
+    }
+    Some((input[..end].to_string(), &input[end..]))
+}
+
+fn first_parenthesized_content(input: &str) -> Option<&str> {
+    let bytes = input.as_bytes();
+    let mut depth = 0usize;
+    let mut start = None;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\'' | b'"' | b'`' => {
+                i = skip_mysql_quoted(input, i, bytes[i]);
+                continue;
+            }
+            b'(' => {
+                if depth == 0 {
+                    start = Some(i + 1);
+                }
+                depth += 1;
+            }
+            b')' if depth > 0 => {
+                depth -= 1;
+                if depth == 0 {
+                    return start.map(|start| &input[start..i]);
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
+fn split_top_level_csv(input: &str) -> Vec<&str> {
+    let bytes = input.as_bytes();
+    let mut parts = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\'' | b'"' | b'`' => {
+                i = skip_mysql_quoted(input, i, bytes[i]);
+                continue;
+            }
+            b'(' => depth += 1,
+            b')' if depth > 0 => depth -= 1,
+            b',' if depth == 0 => {
+                parts.push(input[start..i].trim());
+                start = i + 1;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    parts.push(input[start..].trim());
+    parts
+}
+
+fn parse_mysql_index_columns(input: &str) -> Vec<String> {
+    split_top_level_csv(input)
+        .into_iter()
+        .filter_map(|part| read_mysql_identifier(part).map(|(column, _)| column))
+        .filter(|column| !column.is_empty())
+        .collect()
+}
+
+fn mysql_keyword_argument(input: &str, keyword: &str) -> Option<String> {
+    let bytes = input.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\'' | b'"' | b'`' => {
+                i = skip_mysql_quoted(input, i, bytes[i]);
+                continue;
+            }
+            _ if mysql_keyword_at(input, i, keyword) => {
+                return read_mysql_identifier(&input[i + keyword.len()..]).map(|(value, _)| value);
+            }
+            _ => i += 1,
+        }
+    }
+    None
+}
+
+fn mysql_quoted_string_argument(input: &str, keyword: &str) -> Option<String> {
+    let bytes = input.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\'' | b'"' | b'`' => {
+                i = skip_mysql_quoted(input, i, bytes[i]);
+                continue;
+            }
+            _ if mysql_keyword_at(input, i, keyword) => {
+                let rest = input[i + keyword.len()..].trim_start();
+                if rest.as_bytes().first().copied() != Some(b'\'') {
+                    return None;
+                }
+                let end = skip_mysql_quoted(rest, 0, b'\'');
+                if end <= 1 || end > rest.len() {
+                    return None;
+                }
+                return Some(rest[1..end - 1].replace("\\'", "'").replace("''", "'"));
+            }
+            _ => i += 1,
+        }
+    }
+    None
+}
+
 pub async fn list_foreign_keys(pool: &MySqlPool, database: &str, table: &str) -> Result<Vec<ForeignKeyInfo>, String> {
     let sql = format!(
         "SELECT kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, \
@@ -2914,6 +3221,57 @@ mod tests {
         assert!(!sql.contains("CONSTRAINT_NAME = 'PRIMARY'"));
         assert!(sql.contains("c.COLUMN_KEY"));
         assert!(!sql.contains("COLLATE"));
+    }
+
+    #[test]
+    fn doris_create_table_ddl_indexes_include_unique_key_and_inverted_indexes() {
+        let ddl = r#"
+CREATE TABLE `bfm_org` (
+  `org_id` bigint NULL,
+  `ORG_CODE` varchar(255) NULL,
+  `ORG_NAME` varchar(255) NULL,
+  INDEX org_id_idx (`org_id`) USING INVERTED,
+  INDEX org_code_idx (`ORG_CODE`) USING INVERTED,
+  INDEX org_name_idx (`ORG_NAME`) USING INVERTED
+) ENGINE=OLAP
+UNIQUE KEY(`org_id`)
+COMMENT '部门信息表'
+DISTRIBUTED BY HASH(`org_id`) BUCKETS 4
+"#;
+
+        let indexes = doris_indexes_from_create_table_ddl(ddl);
+
+        assert_eq!(indexes.len(), 4);
+        assert_eq!(indexes[0].name, "org_id_idx");
+        assert_eq!(indexes[0].columns, vec!["org_id"]);
+        assert!(!indexes[0].is_unique);
+        assert_eq!(indexes[0].index_type.as_deref(), Some("INVERTED"));
+        assert_eq!(indexes[3].name, "UNIQUE KEY");
+        assert_eq!(indexes[3].columns, vec!["org_id"]);
+        assert!(indexes[3].is_unique);
+        assert!(!indexes[3].is_primary);
+        assert_eq!(indexes[3].index_type.as_deref(), Some("UNIQUE KEY"));
+    }
+
+    #[test]
+    fn doris_create_table_ddl_index_parser_handles_quoted_names_and_comments() {
+        let ddl = r#"
+CREATE TABLE `search_test` (
+  `name``part` varchar(64) NULL,
+  INDEX `idx``name` (`name``part`) USING NGRAM_BF COMMENT 'name''s index'
+) ENGINE=OLAP
+UNIQUE KEY(`tenant_id`, `name``part`)
+"#;
+
+        let indexes = doris_indexes_from_create_table_ddl(ddl);
+
+        assert_eq!(indexes.len(), 2);
+        assert_eq!(indexes[0].name, "idx`name");
+        assert_eq!(indexes[0].columns, vec!["name`part"]);
+        assert_eq!(indexes[0].index_type.as_deref(), Some("NGRAM_BF"));
+        assert_eq!(indexes[0].comment.as_deref(), Some("name's index"));
+        assert_eq!(indexes[1].columns, vec!["tenant_id", "name`part"]);
+        assert!(indexes[1].is_unique);
     }
 
     #[test]

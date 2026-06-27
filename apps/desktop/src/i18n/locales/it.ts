@@ -1055,6 +1055,7 @@ export default {
     proxy: "Proxy",
     proxyEnable: "Invia richieste AI tramite proxy",
     proxyUrl: "URL Proxy",
+    anthropicMessagesHint: "Le API compatibili con Anthropic Messages di solito usano /v1/messages.",
     enableThinking: "Pensiero (Thinking)",
     enableThinkingOn: "Abilitato",
     enableThinkingOff: "Disabilitato",
@@ -1445,6 +1446,7 @@ export default {
   redis: {
     selectKey: "Seleziona una chiave per visualizzarne il valore",
     noKeys: "Nessuna chiave trovata",
+    noKeysInScanHint: "Nessuna chiave trovata nell'intervallo di scansione corrente",
     pattern: "pattern (es. user:*)",
     fuzzyPattern: "la chiave contiene...",
     fuzzyMatch: "Fuzzy",
@@ -1455,6 +1457,7 @@ export default {
     searchByValue: "Valore",
     searchByAll: "Tutto",
     keys: "{count} chiavi",
+    loadedKeys: "{loaded} / {total} chiavi caricate",
     loadingKeys: "Caricamento chiavi...",
     searchingValues: "Ricerca nei valori...",
     searchingAll: "Ricerca in chiavi e valori...",

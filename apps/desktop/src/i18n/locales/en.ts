@@ -1116,6 +1116,7 @@ export default {
     enableThinkingOn: "Enabled",
     enableThinkingOff: "Disabled",
     enableThinkingHint: "This option only takes effect on /chat/completions APIs and supported models. When disabled, it can significantly reduce token usage, but the quality of generated results may decrease slightly.",
+    anthropicMessagesHint: "Anthropic Messages compatible APIs usually use /v1/messages.",
     contextWindow: "Context Window",
     contextWindowAuto: "Auto (detect from model name)",
     contextWindowHint: "Tokens. Leave empty to auto-detect. Set manually for local/custom models.",
@@ -1659,6 +1660,7 @@ export default {
   redis: {
     selectKey: "Select a key to view its value",
     noKeys: "No keys found",
+    noKeysInScanHint: "No keys found in current scan range",
     pattern: "pattern (e.g. user:*)",
     fuzzyPattern: "key contains...",
     fuzzyMatch: "Fuzzy",
@@ -1669,6 +1671,7 @@ export default {
     searchByValue: "Value",
     searchByAll: "All",
     keys: "{count} keys",
+    loadedKeys: "{loaded} / {total} keys loaded",
     loadingKeys: "Loading keys...",
     searchingValues: "Searching values...",
     searchingAll: "Searching keys and values...",

@@ -952,6 +952,7 @@ export default {
     proxy: "Proxy",
     proxyEnable: "Enviar solicitudes de IA mediante proxy",
     proxyUrl: "URL del proxy",
+    anthropicMessagesHint: "Las API compatibles con Anthropic Messages suelen usar /v1/messages.",
     actions: {
       generate: "Generar SQL",
       explain: "Explicar SQL",
@@ -1321,6 +1322,7 @@ export default {
   redis: {
     selectKey: "Selecciona una clave para ver su valor",
     noKeys: "No se encontraron claves",
+    noKeysInScanHint: "No se encontraron claves en el rango de escaneo actual",
     pattern: "patrón (p. ej. usuario:*)",
     fuzzyPattern: "la clave contiene...",
     fuzzyMatch: "Difusa",
@@ -1331,6 +1333,7 @@ export default {
     searchByValue: "Valor",
     searchByAll: "Todo",
     keys: "{count} claves",
+    loadedKeys: "{loaded} / {total} claves cargadas",
     loadingKeys: "Cargando claves...",
     searchingValues: "Buscando por valor...",
     searchingAll: "Buscando claves y valores...",

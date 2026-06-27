@@ -67,7 +67,7 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { useQueryStore } from "@/stores/queryStore";
 import QueryEditor from "@/components/editor/QueryEditor.vue";
 import DdlViewDialog from "./DdlViewDialog.vue";
-import type { SqlFormatDialect } from "@/lib/sqlFormatter";
+import { formatSqlForDisplay, sqlFormatDialectForDbType, type SqlFormatDialect } from "@/lib/sqlFormatter";
 import { isCancelSearchShortcut } from "@/lib/keyboardShortcuts";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -83,7 +83,7 @@ import {
   type ObjectBrowserSortKey,
 } from "@/lib/objectBrowserRows";
 
-type ObjectFilter = "all" | "tables" | "views" | "procedures" | "functions" | "sequences" | "packages";
+type ObjectFilter = "all" | "tables" | "views" | "materializedViews" | "procedures" | "functions" | "sequences" | "packages";
 type ObjectBrowserColumnKey = "select" | "name" | "type" | "estimatedRows" | "totalBytes" | "created_at" | "updated_at" | "comment";
 
 const props = defineProps<{
@@ -122,6 +122,7 @@ const sourceRow = ref<ObjectBrowserRow | null>(null);
 const sourceEditing = ref(false);
 const effectiveDatabaseType = computed(() => effectiveDatabaseTypeForConnection(props.connection) ?? props.connection.db_type);
 const tableStructureDatabaseType = computed(() => tableStructureDatabaseTypeForConnection(props.connection) ?? props.connection.db_type);
+const sourceEditableText = ref("");
 const sourceDraft = ref("");
 const sourceSaving = ref(false);
 const sourceSaveError = ref("");
@@ -168,7 +169,8 @@ const { addTask: addExportTask } = useExportTracker();
 
 const needsSchema = computed(() => isSchemaAware(props.connection.db_type) && !connectionUsesDatabaseObjectTreeMode(props.connection));
 const tableCount = computed(() => rows.value.filter((row) => row.type === "TABLE").length);
-const viewCount = computed(() => rows.value.filter((row) => row.type === "VIEW" || row.type === "MATERIALIZED_VIEW").length);
+const viewCount = computed(() => rows.value.filter((row) => row.type === "VIEW").length);
+const materializedViewCount = computed(() => rows.value.filter((row) => row.type === "MATERIALIZED_VIEW").length);
 const procedureCount = computed(() => rows.value.filter((row) => row.type === "PROCEDURE").length);
 const functionCount = computed(() => rows.value.filter((row) => row.type === "FUNCTION").length);
 const sequenceCount = computed(() => rows.value.filter((row) => row.type === "SEQUENCE").length);
@@ -178,31 +180,14 @@ const canOpenDiagram = computed(() => !!props.database && supportsSchemaDiagram(
 const canOpenTableImport = computed(() => !!props.database && supportsTableImport(effectiveDatabaseType.value));
 const supportsTruncateTable = computed(() => supportsTableTruncate(effectiveDatabaseType.value));
 const sourceDialect = computed(() => codeMirrorSqlDialect(effectiveDatabaseType.value));
-const sourceFormatDialect = computed<SqlFormatDialect>(() => {
-  switch (effectiveDatabaseType.value) {
-    case "mysql":
-    case "postgres":
-    case "sqlite":
-    case "sqlserver":
-      return effectiveDatabaseType.value;
-    case "rqlite":
-    case "turso":
-      return "sqlite";
-    case "gaussdb":
-    case "kwdb":
-    case "opengauss":
-    case "questdb":
-      return "postgres";
-    default:
-      return "generic";
-  }
-});
+const sourceFormatDialect = computed<SqlFormatDialect>(() => sqlFormatDialectForDbType(effectiveDatabaseType.value));
 const objectFilters = computed<ObjectFilter[]>(() =>
   (
     [
       ["all", rows.value.length],
       ["tables", tableCount.value],
       ["views", viewCount.value],
+      ["materializedViews", materializedViewCount.value],
       ["procedures", procedureCount.value],
       ["functions", functionCount.value],
       ["sequences", sequenceCount.value],
@@ -262,7 +247,8 @@ function iconFor(row: ObjectBrowserRow) {
 }
 
 function typeLabel(type: ObjectBrowserRow["type"]) {
-  if (type === "VIEW" || type === "MATERIALIZED_VIEW") return t("objects.view");
+  if (type === "MATERIALIZED_VIEW") return t("common.materializedView");
+  if (type === "VIEW") return t("objects.view");
   if (type === "PROCEDURE") return t("objects.procedure");
   if (type === "FUNCTION") return t("objects.function");
   if (type === "SEQUENCE") return t("objects.sequence");
@@ -330,7 +316,8 @@ function resetObjectColumnWidth(key: ObjectBrowserColumnKey, width: number, even
 
 function rowMatchesObjectFilter(row: ObjectBrowserRow) {
   if (objectFilter.value === "tables") return row.type === "TABLE";
-  if (objectFilter.value === "views") return row.type === "VIEW" || row.type === "MATERIALIZED_VIEW";
+  if (objectFilter.value === "views") return row.type === "VIEW";
+  if (objectFilter.value === "materializedViews") return row.type === "MATERIALIZED_VIEW";
   if (objectFilter.value === "procedures") return row.type === "PROCEDURE";
   if (objectFilter.value === "functions") return row.type === "FUNCTION";
   if (objectFilter.value === "sequences") return row.type === "SEQUENCE";
@@ -425,6 +412,7 @@ async function openSource(row: ObjectBrowserRow) {
   sourceContent.value = "";
   sourceError.value = "";
   sourceEditing.value = false;
+  sourceEditableText.value = "";
   sourceDraft.value = "";
   sourceSaveError.value = "";
   sourceLoading.value = true;
@@ -437,7 +425,8 @@ async function openSource(row: ObjectBrowserRow) {
       name: row.name,
       source: result.source,
     });
-    sourceContent.value = editable;
+    sourceEditableText.value = editable;
+    sourceContent.value = await formatSqlForDisplay(editable, sourceFormatDialect.value, settingsStore.editorSettings.sqlFormatter);
     sourceDraft.value = editable;
     sourceEditing.value = row.type !== "SEQUENCE";
   } catch (e: any) {
@@ -450,15 +439,19 @@ async function openSource(row: ObjectBrowserRow) {
 async function openViewDdl(row: ObjectBrowserRow) {
   if (row.type !== "VIEW" && row.type !== "MATERIALIZED_VIEW") return;
   try {
-    const result = await api.getObjectSource(props.connection.id, props.database, row.schema || selectedSchema.value || props.database, row.name, "VIEW");
-    const ddl = await buildViewDdl({
-      databaseType: effectiveDatabaseType.value,
-      schema: row.schema || selectedSchema.value || props.database,
-      name: row.name,
-      source: result.source,
-    });
+    const schema = row.schema || selectedSchema.value || props.database;
+    const ddl =
+      row.type === "MATERIALIZED_VIEW"
+        ? await api.getTableDdl(props.connection.id, props.database, schema, row.name, "MATERIALIZED_VIEW")
+        : await buildViewDdl({
+            databaseType: effectiveDatabaseType.value,
+            schema,
+            name: row.name,
+            source: (await api.getObjectSource(props.connection.id, props.database, schema, row.name, "VIEW")).source,
+          });
+    const formatted = await formatSqlForDisplay(ddl, sourceFormatDialect.value, settingsStore.editorSettings.sqlFormatter);
     const tabId = queryStore.createTab(props.connection.id, props.database, `DDL - ${row.name}`);
-    queryStore.updateSql(tabId, ddl);
+    queryStore.updateSql(tabId, formatted);
   } catch (e: any) {
     toast(e?.message || String(e), 5000);
   }
@@ -630,6 +623,7 @@ function closeSource() {
   sourceContent.value = "";
   sourceError.value = "";
   sourceEditing.value = false;
+  sourceEditableText.value = "";
   sourceDraft.value = "";
   sourceSaveError.value = "";
 }
@@ -804,11 +798,16 @@ async function confirmBatchDropTables() {
 async function exportStructure(row: ObjectBrowserRow) {
   try {
     const schema = row.schema || selectedSchema.value || props.database;
-    const ddl = await api.getTableDdl(props.connection.id, props.database, schema, row.name, row.type === "VIEW" || row.type === "MATERIALIZED_VIEW" ? "VIEW" : undefined);
+    const ddl = await api.getTableDdl(props.connection.id, props.database, schema, row.name, tableDdlObjectType(row.type));
     await saveFileContent(ddl + "\n", `${row.name}.sql`, "SQL", "sql");
   } catch (e: any) {
     console.error("Export structure failed:", e);
   }
+}
+
+function tableDdlObjectType(type: ObjectBrowserRow["type"]): ObjectSourceKind | undefined {
+  if (type === "VIEW" || type === "MATERIALIZED_VIEW") return type;
+  return undefined;
 }
 
 async function exportDataLegacy(row: ObjectBrowserRow, format: "json" | "sql") {
@@ -1040,8 +1039,8 @@ async function copySource() {
 }
 
 function editSource() {
-  if (!sourceRow.value || !sourceContent.value) return;
-  sourceDraft.value = sourceContent.value;
+  if (!sourceRow.value || !sourceEditableText.value) return;
+  sourceDraft.value = sourceEditableText.value;
   sourceSaveError.value = "";
   sourceEditing.value = true;
 }
@@ -1183,6 +1182,7 @@ function onSchemaChange(value: any) {
 function filterCount(filter: ObjectFilter) {
   if (filter === "tables") return tableCount.value;
   if (filter === "views") return viewCount.value;
+  if (filter === "materializedViews") return materializedViewCount.value;
   if (filter === "procedures") return procedureCount.value;
   if (filter === "functions") return functionCount.value;
   if (filter === "sequences") return sequenceCount.value;
@@ -1191,7 +1191,22 @@ function filterCount(filter: ObjectFilter) {
 }
 
 function filterLabel(filter: ObjectFilter) {
-  const key = filter === "tables" ? "objects.tables" : filter === "views" ? "objects.views" : filter === "procedures" ? "objects.procedures" : filter === "functions" ? "objects.functions" : filter === "sequences" ? "objects.sequences" : filter === "packages" ? "objects.packages" : "objects.all";
+  const key =
+    filter === "tables"
+      ? "objects.tables"
+      : filter === "views"
+        ? "objects.views"
+        : filter === "materializedViews"
+          ? "tree.materializedViews"
+          : filter === "procedures"
+            ? "objects.procedures"
+            : filter === "functions"
+              ? "objects.functions"
+              : filter === "sequences"
+                ? "objects.sequences"
+                : filter === "packages"
+                  ? "objects.packages"
+                  : "objects.all";
   return `${t(key)} ${filterCount(filter)}`;
 }
 
@@ -1684,7 +1699,7 @@ function getObjectBrowserMenuItems(item: ObjectBrowserRow): ContextMenuItem[] {
     </DialogContent>
   </Dialog>
 
-  <DdlViewDialog v-if="ddlDialogTarget" :connection-id="props.connection.id" :database="props.database" :schema="ddlDialogTarget.schema || selectedSchema" :table-name="ddlDialogTarget.name" :dialect="sourceDialect" v-model:open="showDdlDialog" />
+  <DdlViewDialog v-if="ddlDialogTarget" :connection-id="props.connection.id" :database="props.database" :schema="ddlDialogTarget.schema || selectedSchema" :table-name="ddlDialogTarget.name" :dialect="sourceDialect" :format-dialect="sourceFormatDialect" v-model:open="showDdlDialog" />
 </template>
 
 <style scoped>

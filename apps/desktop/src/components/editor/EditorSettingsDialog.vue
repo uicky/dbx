@@ -3,7 +3,7 @@ import { ref, watch, shallowRef, computed, onMounted, onUnmounted, nextTick } fr
 import type { Ref } from "vue";
 import type { EditorView as EditorViewType } from "@codemirror/view";
 import { useI18n } from "vue-i18n";
-import { AlertTriangle, CheckCircle2, CircleHelp, Cloud, Copy, Download, ExternalLink, GripVertical, Loader2, Moon, PackageSearch, Pencil, Plus, RefreshCw, RotateCcw, Settings, Sun, SunMoon, Terminal, Trash2, Upload, X } from "@lucide/vue";
+import { AlertTriangle, CheckCircle2, CircleHelp, Cloud, Copy, Download, ExternalLink, Eye, GripVertical, Loader2, Moon, PackageSearch, Pencil, Plus, RefreshCw, RotateCcw, Settings, Sun, SunMoon, Terminal, Trash2, Upload, X } from "@lucide/vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -74,7 +74,7 @@ import { DEFAULT_SQL_SNIPPETS } from "@/lib/sqlCompletion";
 import AiProviderLogo from "@/components/icons/AiProviderLogo.vue";
 import AppLogo from "@/components/icons/AppLogo.vue";
 import SqlFormatterSettingsPanel from "./SqlFormatterSettingsPanel.vue";
-import type { AppThemeAppearance } from "@/lib/appTheme";
+import type { AppThemeAppearance, AppThemeMode } from "@/lib/appTheme";
 import { useConnectionStore } from "@/stores/connectionStore";
 import { useSavedSqlStore } from "@/stores/savedSqlStore";
 import { currentLocale, setLocale, type Locale } from "@/i18n";
@@ -85,7 +85,7 @@ const { t } = useI18n();
 const settingsStore = useSettingsStore();
 const connectionStore = useConnectionStore();
 const savedSqlStore = useSavedSqlStore();
-const { isDark, themeMode, setThemeMode } = useTheme();
+const { appAppearance, themeMode, setThemeMode } = useTheme();
 
 let cachedSystemFonts: string[] | null = null;
 let pendingSystemFonts: Promise<string[]> | null = null;
@@ -1773,7 +1773,7 @@ const previewSettings = computed<{
   fontFamily: editFontFamily.value,
   fontSize: editFontSize.value,
   theme: editTheme.value,
-  appAppearance: isDark.value ? "dark" : "light",
+  appAppearance: appAppearance.value,
   customColors: getPreviewCustomThemeColors(),
 }));
 
@@ -2101,6 +2101,7 @@ watch(
                     v-for="option in [
                       { value: 'light', label: t('toolbar.themeLight'), icon: Sun },
                       { value: 'dark', label: t('toolbar.themeDark'), icon: Moon },
+                      { value: 'amber-paper', label: t('toolbar.themeAmberPaper'), icon: Eye },
                       { value: 'system', label: t('toolbar.themeSystem'), icon: SunMoon },
                     ]"
                     :key="option.value"
@@ -2109,7 +2110,7 @@ watch(
                     size="sm"
                     class="h-auto gap-1.5 px-3 py-1.5"
                     :class="themeMode === option.value ? 'border-blue-300 ring-2 ring-blue-300/50' : ''"
-                    @click="setThemeMode(option.value as 'light' | 'dark' | 'system')"
+                    @click="setThemeMode(option.value as AppThemeMode)"
                   >
                     <component :is="option.icon" class="h-3.5 w-3.5" />
                     {{ option.label }}

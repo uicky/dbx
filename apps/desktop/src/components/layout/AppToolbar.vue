@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount, h } from "vue";
 import { useI18n } from "vue-i18n";
-import { DatabaseZap, FilePlus2, Loader2, Moon, Sun, SunMoon, History, Bot, ArrowLeftRight, FileCode, BookMarked, GitCompareArrows, TableProperties, Settings, CloudDownload, Package, FileDown } from "@lucide/vue";
+import { DatabaseZap, Eye, FilePlus2, Loader2, Moon, Sun, SunMoon, History, Bot, ArrowLeftRight, FileCode, BookMarked, GitCompareArrows, TableProperties, Settings, CloudDownload, Package, FileDown } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import LightDropdown from "@/components/ui/LightDropdown.vue";
@@ -59,8 +59,15 @@ const settingsStore = useSettingsStore();
 const toolbarItems = computed(() => settingsStore.editorSettings.toolbarItems);
 const { isMac, isDesktop, showControls, isMaximized, isFullscreen, minimize, toggleMaximize, close } = useWindowControls();
 
+const themeItems = computed(() => [
+  { value: "light", label: t("toolbar.themeLight"), icon: Sun },
+  { value: "dark", label: t("toolbar.themeDark"), icon: Moon },
+  { value: "amber-paper", label: t("toolbar.themeAmberPaper"), icon: Eye },
+  { value: "system", label: t("toolbar.themeSystem"), icon: SunMoon },
+]);
 const themeTriggerIcon = computed(() => {
   if (props.themeMode === "system") return SunMoon;
+  if (props.themeMode === "amber-paper") return Eye;
   return props.isDark ? Moon : Sun;
 });
 
@@ -357,7 +364,7 @@ const checkingUpdates = computed(() => props.checkingUpdates);
 </script>
 
 <template>
-  <div ref="toolbarEl" class="h-10 flex items-center gap-1 px-2 border-b bg-muted/30 shrink-0 overflow-hidden" :class="{ 'pl-17.5': shouldReserveMacTrafficLightInset(isMac, isFullscreen, isDesktop) }" data-tauri-drag-region @dblclick="onToolbarDblClick">
+  <div ref="toolbarEl" class="app-toolbar h-10 flex items-center gap-1 px-2 border-b bg-muted/30 shrink-0 overflow-hidden" :class="{ 'pl-17.5': shouldReserveMacTrafficLightInset(isMac, isFullscreen, isDesktop) }" data-tauri-drag-region @dblclick="onToolbarDblClick">
     <Button variant="ghost" size="sm" class="h-8 px-2 text-xs gap-1" @click="emit('new-connection')">
       <DatabaseZap class="h-3.5 w-3.5" />
       {{ t("toolbar.newConnection") }}

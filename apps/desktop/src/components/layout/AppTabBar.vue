@@ -301,7 +301,7 @@ function activateTab(tabId: string) {
 </script>
 
 <template>
-  <div v-if="queryStore.tabs.length > 0 || driverStoreOpen" class="relative flex border-b shrink-0" :class="settingsStore.editorSettings.appLayout === 'classic' ? 'h-9 items-stretch bg-muted' : 'h-10 items-center bg-background px-2'">
+  <div v-if="queryStore.tabs.length > 0 || driverStoreOpen" class="app-tab-bar relative flex border-b shrink-0" :class="settingsStore.editorSettings.appLayout === 'classic' ? 'h-9 items-stretch bg-muted' : 'h-10 items-center bg-background px-2'">
     <div class="app-tab-strip relative h-full min-w-0 flex-1">
       <div v-if="showTabOverflowControls" class="app-tab-scrollbar" :class="{ 'app-tab-scrollbar--dragging': isScrollbarDragging }" @pointerdown="startScrollbarDrag">
         <div class="app-tab-scrollbar__thumb" :style="tabScrollbarThumbStyle" />

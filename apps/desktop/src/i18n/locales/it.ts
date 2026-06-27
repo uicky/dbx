@@ -39,6 +39,7 @@ export default {
     theme: "Tema",
     themeLight: "Chiaro",
     themeDark: "Scuro",
+    themeAmberPaper: "Comfort visivo",
     themeSystem: "Segui Sistema",
     sqlSaved: "SQL salvato",
     sqlOpenFailed: "Impossibile aprire il file: {message}",

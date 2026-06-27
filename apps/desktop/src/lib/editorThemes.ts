@@ -242,8 +242,100 @@ export function cellDetailActiveLineColor(): string {
   return colorMixValue("var(--accent)", "color-mix(in oklch, var(--foreground) 4%, transparent)");
 }
 
+function createAmberPaperTheme(EditorView: typeof import("@codemirror/view").EditorView): Extension {
+  const theme = EditorView.theme(
+    {
+      "&": {
+        backgroundColor: "#f4ead1",
+        color: "#5f4a2b",
+        [EDITOR_SELECTION_BACKGROUND_CSS_VAR]: "rgb(213 184 120 / 0.55)",
+      },
+      "&.cm-focused": {
+        outline: "none",
+      },
+      ".cm-scroller": {
+        backgroundColor: "#f4ead1",
+        backgroundImage:
+          "radial-gradient(circle at 22% 8%, rgb(255 246 219 / 0.72), transparent 32%), radial-gradient(circle at 88% 78%, rgb(190 126 40 / 0.12), transparent 38%), repeating-linear-gradient(0deg, rgb(95 74 43 / 0.026) 0 1px, transparent 1px 5px), repeating-linear-gradient(92deg, rgb(255 250 232 / 0.24) 0 1px, transparent 1px 8px)",
+      },
+      ".cm-content": {
+        backgroundColor: "transparent",
+        caretColor: "#7c5527",
+      },
+      ".cm-cursor": {
+        borderLeftColor: "#7c5527",
+      },
+      "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
+        backgroundColor: "rgb(213 184 120 / 0.55)",
+      },
+      ".cm-activeLine": {
+        backgroundColor: "rgb(224 204 161 / 0.46)",
+      },
+      ".cm-gutters": {
+        backgroundColor: "#eadbb5",
+        color: "#856f4a",
+        borderRight: "1px solid #d6c09c",
+      },
+      ".cm-gutters:after": {
+        background: "#c7aa73 !important",
+      },
+      ".cm-activeLineGutter": {
+        backgroundColor: "#dfcb9b",
+        color: "#5f4a2b",
+      },
+      ".cm-matchingBracket": {
+        backgroundColor: "rgb(183 129 64 / 0.2)",
+        outline: "1px solid rgb(183 129 64 / 0.4)",
+      },
+      ".cm-panels, .cm-search": {
+        backgroundColor: "#f2e6c9",
+        color: "#5f4a2b",
+      },
+      ".cm-tooltip": {
+        backgroundColor: "#f6ecd5",
+        borderColor: "#d6c09c",
+        color: "#5f4a2b",
+      },
+    },
+    { dark: false },
+  );
+
+  const highlightStyle = HighlightStyle.define([
+    { tag: tags.keyword, color: "#0f60c4", fontWeight: "600" },
+    { tag: tags.controlKeyword, color: "#0f60c4", fontWeight: "600" },
+    { tag: tags.definitionKeyword, color: "#0f60c4", fontWeight: "600" },
+    { tag: tags.operatorKeyword, color: "#0f60c4", fontWeight: "600" },
+    { tag: tags.string, color: "#b22f2f" },
+    { tag: tags.special(tags.string), color: "#b22f2f" },
+    { tag: tags.number, color: "#9b5b19" },
+    { tag: tags.integer, color: "#9b5b19" },
+    { tag: tags.float, color: "#9b5b19" },
+    { tag: tags.comment, color: "#1f7a1f", fontStyle: "italic" },
+    { tag: tags.lineComment, color: "#1f7a1f", fontStyle: "italic" },
+    { tag: tags.blockComment, color: "#1f7a1f", fontStyle: "italic" },
+    { tag: tags.typeName, color: "#537aa4" },
+    { tag: tags.variableName, color: "#1d78c9" },
+    { tag: tags.name, color: "#1d78c9" },
+    { tag: tags.definition(tags.variableName), color: "#1d78c9" },
+    { tag: tags.function(tags.variableName), color: "#7a4d9b" },
+    { tag: tags.propertyName, color: "#1d78c9" },
+    { tag: tags.operator, color: "#6c5738" },
+    { tag: tags.compareOperator, color: "#6c5738" },
+    { tag: tags.logicOperator, color: "#6c5738" },
+    { tag: tags.punctuation, color: "#6f5a3a" },
+    { tag: tags.paren, color: "#6f5a3a" },
+    { tag: tags.bracket, color: "#6f5a3a" },
+    { tag: tags.bool, color: "#0f60c4", fontWeight: "600" },
+    { tag: tags.null, color: "#0f60c4", fontWeight: "600" },
+    { tag: tags.invalid, color: "#a84032" },
+  ]);
+
+  return [theme, syntaxHighlighting(highlightStyle)];
+}
+
 /** Load a CodeMirror theme extension by theme name. */
-export function resolveEditorTheme(theme: EditorTheme, appAppearance: AppThemeAppearance): Exclude<EditorTheme, "app"> {
+export function resolveEditorTheme(theme: EditorTheme, appAppearance: AppThemeAppearance): Exclude<EditorTheme, "app"> | "amber-paper" {
+  if (theme === "app" && appAppearance === "amber-paper") return "amber-paper";
   if (theme === "app") return appAppearance === "dark" ? "one-dark" : "vscode-light";
   return theme;
 }
@@ -252,6 +344,8 @@ export function resolveEditorTheme(theme: EditorTheme, appAppearance: AppThemeAp
 export async function loadEditorTheme(theme: EditorTheme, appAppearance: AppThemeAppearance = "dark", customColors?: CustomThemeColors): Promise<Extension> {
   const resolvedTheme = resolveEditorTheme(theme, appAppearance);
   switch (resolvedTheme) {
+    case "amber-paper":
+      return createAmberPaperTheme((await import("@codemirror/view")).EditorView);
     case "one-dark":
       return (await import("@codemirror/theme-one-dark")).oneDark;
     case "vscode-dark":

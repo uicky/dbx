@@ -73,13 +73,15 @@ const themeTriggerIcon = computed(() => {
 
 function nextThemeMode(mode: AppThemeMode): AppThemeMode {
   if (mode === "light") return "dark";
-  if (mode === "dark") return "system";
+  if (mode === "dark") return "amber-paper";
+  if (mode === "amber-paper") return "system";
   return "light";
 }
 
 function themeModeLabel(mode: AppThemeMode): string {
   if (mode === "light") return t("toolbar.themeLight");
   if (mode === "dark") return t("toolbar.themeDark");
+  if (mode === "amber-paper") return t("toolbar.themeAmberPaper");
   return t("toolbar.themeSystem");
 }
 

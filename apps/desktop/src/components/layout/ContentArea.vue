@@ -570,10 +570,10 @@ defineExpose({ focusSearch, refreshData, handleModRTarget, requestQueryEditorExe
     <template v-if="activeTab.mode === 'query'">
       <Splitpanes horizontal class="query-output-splitpanes flex-1 min-h-0 overflow-hidden" @resized="onResultsResized">
         <Pane class="min-h-0" :size="editorPaneSize" :min-size="resultsPaneOpen ? 15 : 100">
-          <div class="h-full flex flex-col relative">
+          <div class="query-editor-pane h-full min-h-0 flex flex-col relative">
             <QueryEditor
               ref="queryEditorRef"
-              class="flex-1"
+              class="min-h-0 flex-1"
               :model-value="activeTab.sql"
               :connection-id="activeTab.connectionId"
               :database="activeTab.database"

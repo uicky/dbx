@@ -301,22 +301,39 @@ function activateTab(tabId: string) {
 </script>
 
 <template>
-  <div v-if="queryStore.tabs.length > 0 || driverStoreOpen" class="app-tab-bar relative flex border-b shrink-0" :class="settingsStore.editorSettings.appLayout === 'classic' ? 'h-9 items-stretch bg-muted' : 'h-10 items-center bg-background px-2'">
+  <div
+    v-if="queryStore.tabs.length > 0 || driverStoreOpen"
+    class="app-tab-bar relative flex border-b shrink-0"
+    :class="settingsStore.editorSettings.appLayout === 'classic' ? 'h-9 items-stretch bg-muted' : settingsStore.editorSettings.appLayout === 'modern' ? 'h-12 items-center bg-transparent px-3' : 'h-10 items-center bg-background px-2'"
+  >
     <div class="app-tab-strip relative h-full min-w-0 flex-1">
       <div v-if="showTabOverflowControls" class="app-tab-scrollbar" :class="{ 'app-tab-scrollbar--dragging': isScrollbarDragging }" @pointerdown="startScrollbarDrag">
         <div class="app-tab-scrollbar__thumb" :style="tabScrollbarThumbStyle" />
       </div>
-      <div ref="tabsContainerRef" class="app-tab-scroll flex min-w-0 flex-1 items-center overflow-x-auto" :class="settingsStore.editorSettings.appLayout === 'classic' ? 'h-full' : 'h-10 gap-1.5 py-1.5'" :style="tabsContainerStyle" @scroll="updateScrollButtons" @wheel="onTabsWheel">
+      <div
+        ref="tabsContainerRef"
+        class="app-tab-scroll flex min-w-0 flex-1 items-center overflow-x-auto"
+        :class="settingsStore.editorSettings.appLayout === 'classic' ? 'h-full' : settingsStore.editorSettings.appLayout === 'modern' ? 'h-12 gap-1.5 py-1.5' : 'h-10 gap-1.5 py-1.5'"
+        :style="tabsContainerStyle"
+        @scroll="updateScrollButtons"
+        @wheel="onTabsWheel"
+      >
         <CustomContextMenu v-for="tab in queryStore.tabs" :key="tab.id" :items="getTabMenuItems(tab)" v-slot="{ onContextMenu }">
           <div :class="settingsStore.editorSettings.appLayout === 'classic' ? 'h-full' : ''" @contextmenu="onContextMenu">
             <Tooltip>
               <TooltipTrigger as-child>
                 <div
-                  class="group flex items-center gap-1 px-2 text-xs cursor-pointer transition-colors whitespace-nowrap select-none"
+                  class="group flex items-center gap-1 px-2 text-[11px] cursor-pointer transition-colors whitespace-nowrap select-none"
                   :class="
                     settingsStore.editorSettings.appLayout === 'classic'
                       ? [compactTabTitle ? 'min-w-24' : 'min-w-38', 'h-full border-r border-border/80 font-medium dark:border-border/45', tab.id === queryStore.activeTabId && !driverStoreActive ? 'bg-background text-foreground' : 'text-foreground/70 hover:text-foreground/90']
-                      : [compactTabTitle ? 'min-w-24' : 'min-w-38', 'h-7 rounded-md border', tab.id === queryStore.activeTabId && !driverStoreActive ? 'text-foreground font-medium' : 'border-border/60 text-foreground/70 hover:border-border hover:text-foreground/90']
+                      : settingsStore.editorSettings.appLayout === 'modern'
+                        ? [
+                            compactTabTitle ? 'min-w-28' : 'min-w-44',
+                            'h-8 rounded-xl border px-3',
+                            tab.id === queryStore.activeTabId && !driverStoreActive ? 'border-foreground bg-foreground text-background font-semibold shadow-sm' : 'border-transparent bg-transparent text-foreground/55 hover:border-border hover:bg-muted/40 hover:text-foreground',
+                          ]
+                        : [compactTabTitle ? 'min-w-24' : 'min-w-38', 'h-7 rounded-md border', tab.id === queryStore.activeTabId && !driverStoreActive ? 'text-foreground font-medium' : 'border-border/60 text-foreground/70 hover:border-border hover:text-foreground/90']
                   "
                   :style="[tabColorStyle(tab), tabDropStyle(tab.id)]"
                   :data-active-tab="tab.id === queryStore.activeTabId && !driverStoreActive"
@@ -376,11 +393,13 @@ function activateTab(tabId: string) {
         <div
           v-if="driverStoreOpen"
           data-driver-store-tab
-          class="group flex min-w-38 items-center gap-1 px-2 text-xs cursor-pointer transition-colors whitespace-nowrap"
+          class="group flex min-w-38 items-center gap-1 px-2 text-[11px] cursor-pointer transition-colors whitespace-nowrap"
           :class="
             settingsStore.editorSettings.appLayout === 'classic'
               ? ['h-full border-r border-border/80 dark:border-border/45 font-medium', driverStoreActive ? 'bg-background text-foreground' : 'text-foreground/70 hover:text-foreground/90']
-              : ['h-7 rounded-md border font-medium', driverStoreActive ? 'border-ring text-foreground' : 'border-border/60 text-foreground/70 hover:border-border hover:text-foreground/90']
+              : settingsStore.editorSettings.appLayout === 'modern'
+                ? ['h-8 rounded-xl border px-3 font-semibold', driverStoreActive ? 'border-foreground bg-foreground text-background shadow-sm' : 'border-transparent bg-transparent text-foreground/55 hover:border-border hover:bg-muted/40 hover:text-foreground']
+                : ['h-7 rounded-md border font-medium', driverStoreActive ? 'border-ring text-foreground' : 'border-border/60 text-foreground/70 hover:border-border hover:text-foreground/90']
           "
           :style="settingsStore.editorSettings.appLayout === 'classic' && driverStoreActive ? { boxShadow: '0 1px 0 0 var(--color-background)' } : {}"
           @click="emit('activate-driver-store')"

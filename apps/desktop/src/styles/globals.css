@@ -225,82 +225,82 @@
 }
 
 html.amber-paper {
-  --bg-main: rgb(239 227 197);
-  --bg-panel: rgb(244 234 209);
-  --bg-hover: rgb(234 219 181);
-  --bg-active: rgb(224 204 161);
-  --text-primary: rgb(95 74 43);
-  --text-secondary: rgb(133 112 82);
-  --border-color: rgb(214 192 156);
+  --bg-main: rgb(246 239 220);
+  --bg-panel: rgb(248 242 228);
+  --bg-hover: rgb(236 225 199);
+  --bg-active: rgb(220 204 170);
+  --text-primary: rgb(88 69 42);
+  --text-secondary: rgb(120 102 74);
+  --border-color: rgb(206 187 154);
   --accent-blue: rgb(83 122 164);
   --accent-green: rgb(95 141 93);
   --accent-orange: rgb(183 129 64);
 
   --background: var(--bg-main);
   --foreground: var(--text-primary);
-  --card: rgb(246 236 213);
+  --card: rgb(250 244 231);
   --card-foreground: var(--text-primary);
-  --popover: rgb(246 236 213);
+  --popover: rgb(250 244 231);
   --popover-foreground: var(--text-primary);
   --primary: rgb(96 62 28);
   --primary-foreground: rgb(255 248 232);
-  --secondary: rgb(235 220 180);
+  --secondary: rgb(232 223 199);
   --secondary-foreground: var(--text-primary);
-  --muted: rgb(234 219 181);
+  --muted: rgb(231 221 199);
   --muted-foreground: var(--text-secondary);
-  --accent: rgb(224 204 161);
+  --accent: rgb(219 204 173);
   --accent-foreground: rgb(70 49 25);
   --destructive: rgb(168 64 50);
   --border: var(--border-color);
-  --input: rgb(210 185 143);
-  --ring: rgb(163 123 69);
+  --input: rgb(203 183 149);
+  --ring: rgb(154 118 69);
   --chart-1: rgb(83 122 164);
   --chart-2: rgb(95 141 93);
   --chart-3: rgb(183 129 64);
   --chart-4: rgb(151 94 55);
   --chart-5: rgb(111 84 49);
   --radius: 0.75rem;
-  --sidebar: rgb(242 230 201);
+  --sidebar: rgb(248 240 221);
   --sidebar-foreground: var(--text-primary);
   --sidebar-primary: rgb(96 62 28);
   --sidebar-primary-foreground: rgb(255 248 232);
-  --sidebar-accent: rgb(223 203 155);
+  --sidebar-accent: rgb(221 208 182);
   --sidebar-accent-foreground: rgb(70 49 25);
-  --sidebar-border: rgb(214 192 156);
-  --sidebar-ring: rgb(163 123 69);
+  --sidebar-border: rgb(206 187 154);
+  --sidebar-ring: rgb(154 118 69);
   --font-sans: "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Geist Variable", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Geist Mono", "SFMono-Regular", Consolas, monospace;
   --dbx-data-grid-font-family: "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Geist Variable Tabular", sans-serif;
-  --data-grid-row-number-default-bg: rgb(241 229 200);
-  --data-grid-row-muted-bg: rgb(246 236 213);
-  --data-grid-row-new-bg: rgb(229 237 206);
-  --data-grid-row-deleted-bg: rgb(244 222 203);
-  --data-grid-cell-active-bg: rgb(224 204 161);
-  --data-grid-cell-dirty-bg: rgb(249 230 176);
-  --data-grid-cell-selected-bg: rgb(226 209 166);
-  --data-grid-cell-selected-dirty-bg: rgb(232 207 143);
-  --data-grid-cell-selected-border: rgb(132 95 47);
-  --data-grid-cell-selected-single-bg: rgb(215 190 139);
-  --data-grid-cell-selected-single-border: rgb(96 62 28);
-  --data-grid-cell-hover-bg: rgb(232 215 172);
-  --data-grid-cell-search-bg: rgb(250 227 146);
-  --data-grid-cell-current-search-bg: rgb(237 181 74 / 0.42);
-  --data-grid-cell-current-search-border: rgb(177 119 42 / 0.82);
-  --tree-connection-active-bg: rgb(223 203 155);
-  --tree-connection-active-focus-bg: rgb(212 188 132);
+  --data-grid-row-number-default-bg: rgb(244 235 212);
+  --data-grid-row-muted-bg: rgb(249 244 233);
+  --data-grid-row-new-bg: rgb(235 242 221);
+  --data-grid-row-deleted-bg: rgb(247 230 216);
+  --data-grid-cell-active-bg: rgb(219 204 173);
+  --data-grid-cell-dirty-bg: rgb(248 231 184);
+  --data-grid-cell-selected-bg: rgb(224 213 184);
+  --data-grid-cell-selected-dirty-bg: rgb(231 214 158);
+  --data-grid-cell-selected-border: rgb(128 94 51);
+  --data-grid-cell-selected-single-bg: rgb(212 196 163);
+  --data-grid-cell-selected-single-border: rgb(96 68 35);
+  --data-grid-cell-hover-bg: rgb(234 224 194);
+  --data-grid-cell-search-bg: rgb(246 227 155);
+  --data-grid-cell-current-search-bg: rgb(232 182 84 / 0.38);
+  --data-grid-cell-current-search-border: rgb(174 118 41 / 0.72);
+  --tree-connection-active-bg: rgb(221 208 182);
+  --tree-connection-active-focus-bg: rgb(210 198 172);
   --amber-paper-fiber-image:
-    repeating-linear-gradient(0deg, rgb(95 74 43 / 0.04) 0 1px, transparent 1px 5px),
-    repeating-linear-gradient(91deg, rgb(255 250 232 / 0.28) 0 1px, transparent 1px 8px),
-    repeating-linear-gradient(24deg, transparent 0 9px, rgb(120 87 43 / 0.034) 9px 10px, transparent 10px 20px);
+    repeating-linear-gradient(0deg, rgb(95 74 43 / 0.03) 0 1px, transparent 1px 5px),
+    repeating-linear-gradient(91deg, rgb(255 250 232 / 0.18) 0 1px, transparent 1px 8px),
+    repeating-linear-gradient(24deg, transparent 0 9px, rgb(120 87 43 / 0.024) 9px 10px, transparent 10px 20px);
   --amber-paper-noise-image:
-    radial-gradient(circle at 13% 17%, rgb(112 76 31 / 0.08) 0 1px, transparent 1px 6px),
-    radial-gradient(circle at 57% 31%, rgb(255 248 225 / 0.18) 0 1px, transparent 1px 5px),
-    radial-gradient(circle at 81% 74%, rgb(122 82 34 / 0.07) 0 1px, transparent 1px 7px),
-    radial-gradient(circle at 28% 83%, rgb(255 248 225 / 0.16) 0 1px, transparent 1px 6px);
+    radial-gradient(circle at 13% 17%, rgb(112 76 31 / 0.05) 0 1px, transparent 1px 6px),
+    radial-gradient(circle at 57% 31%, rgb(255 248 225 / 0.11) 0 1px, transparent 1px 5px),
+    radial-gradient(circle at 81% 74%, rgb(122 82 34 / 0.05) 0 1px, transparent 1px 7px),
+    radial-gradient(circle at 28% 83%, rgb(255 248 225 / 0.1) 0 1px, transparent 1px 6px);
   --amber-paper-surface-image:
-    radial-gradient(circle at 42% 7%, rgb(255 246 218 / 0.68), transparent 34%),
-    radial-gradient(circle at 88% 86%, rgb(188 126 42 / 0.13), transparent 38%),
-    linear-gradient(90deg, rgb(159 92 28 / 0.14), transparent 1.35rem, transparent calc(100% - 1.35rem), rgb(159 92 28 / 0.13)),
+    radial-gradient(circle at 42% 7%, rgb(255 249 229 / 0.6), transparent 34%),
+    radial-gradient(circle at 88% 86%, rgb(188 126 42 / 0.08), transparent 38%),
+    linear-gradient(90deg, rgb(159 92 28 / 0.08), transparent 1.35rem, transparent calc(100% - 1.35rem), rgb(159 92 28 / 0.07)),
     var(--amber-paper-fiber-image),
     var(--amber-paper-noise-image);
   --amber-paper-edge-clip: polygon(
@@ -395,12 +395,12 @@ html.amber-paper {
 
 html.amber-paper body {
   background:
-    radial-gradient(circle at 34% 6%, rgb(255 247 222 / 0.9), transparent 30%),
-    radial-gradient(circle at 84% 76%, rgb(190 126 40 / 0.18), transparent 38%),
-    radial-gradient(circle at 0 48%, rgb(164 93 28 / 0.2), transparent 22%),
-    radial-gradient(circle at 100% 52%, rgb(164 93 28 / 0.18), transparent 24%),
-    linear-gradient(90deg, rgb(209 161 88 / 0.34), transparent 9%, transparent 91%, rgb(171 112 47 / 0.28)),
-    linear-gradient(180deg, rgb(251 239 205), rgb(239 227 197));
+    radial-gradient(circle at 34% 6%, rgb(255 250 234 / 0.82), transparent 30%),
+    radial-gradient(circle at 84% 76%, rgb(190 126 40 / 0.1), transparent 38%),
+    radial-gradient(circle at 0 48%, rgb(164 93 28 / 0.12), transparent 22%),
+    radial-gradient(circle at 100% 52%, rgb(164 93 28 / 0.1), transparent 24%),
+    linear-gradient(90deg, rgb(209 161 88 / 0.18), transparent 9%, transparent 91%, rgb(171 112 47 / 0.14)),
+    linear-gradient(180deg, rgb(251 244 230), rgb(246 239 220));
 }
 
 html.amber-paper body::before,
@@ -413,7 +413,7 @@ html.amber-paper body::after {
 }
 
 html.amber-paper body::before {
-  opacity: 0.68;
+  opacity: 0.24;
   mix-blend-mode: multiply;
   background-image:
     var(--amber-paper-fiber-image),
@@ -422,17 +422,19 @@ html.amber-paper body::before {
 }
 
 html.amber-paper body::after {
-  opacity: 0.58;
+  opacity: 0.18;
   background:
-    radial-gradient(ellipse at center, transparent 49%, rgb(136 84 29 / 0.24) 100%),
-    linear-gradient(90deg, rgb(139 82 25 / 0.24), transparent 1.6rem, transparent calc(100% - 1.6rem), rgb(139 82 25 / 0.22)),
-    linear-gradient(180deg, rgb(139 82 25 / 0.16), transparent 1.45rem, transparent calc(100% - 1.45rem), rgb(139 82 25 / 0.2));
+    radial-gradient(ellipse at center, transparent 50%, rgb(136 84 29 / 0.18) 100%),
+    linear-gradient(90deg, rgb(139 82 25 / 0.16), transparent 1.35rem, transparent calc(100% - 1.35rem), rgb(139 82 25 / 0.14)),
+    linear-gradient(180deg, rgb(139 82 25 / 0.1), transparent 1.15rem, transparent calc(100% - 1.15rem), rgb(139 82 25 / 0.12));
 }
 
 html.amber-paper .app-toolbar,
 html.amber-paper .app-tab-bar,
 html.amber-paper .app-sidebar-panel,
 html.amber-paper .app-paper-panel,
+html.amber-paper .modern-workspace,
+html.amber-paper .modern-floating-card,
 html.amber-paper .app-content-area,
 html.amber-paper [data-query-editor-root],
 html.amber-paper .bg-background,
@@ -443,29 +445,29 @@ html.amber-paper .bg-popover {
 }
 
 html.amber-paper .app-toolbar {
-  background-color: rgb(232 211 169) !important;
-  border-bottom-color: rgb(198 170 115) !important;
-  box-shadow: inset 0 -1px 0 rgb(124 83 32 / 0.12) !important;
+  background-color: rgb(239 227 199) !important;
+  border-bottom-color: rgb(206 187 154) !important;
+  box-shadow: inset 0 -1px 0 rgb(124 83 32 / 0.08) !important;
 }
 
 html.amber-paper .app-tab-bar {
-  background-color: rgb(238 224 191) !important;
-  border-bottom-color: rgb(203 174 123) !important;
+  background-color: rgb(242 233 213) !important;
+  border-bottom-color: rgb(206 187 154) !important;
 }
 
 html.amber-paper .app-sidebar-panel {
-  background-color: rgb(242 230 201) !important;
-  border-color: rgb(207 177 122) !important;
+  background-color: rgb(248 240 221) !important;
+  border-color: rgb(206 187 154) !important;
   box-shadow:
-    inset 10px 0 18px rgb(143 84 29 / 0.08),
-    inset -10px 0 18px rgb(143 84 29 / 0.07),
-    inset 0 1px 0 rgb(255 250 232 / 0.65) !important;
+    inset 8px 0 14px rgb(143 84 29 / 0.025),
+    inset -8px 0 14px rgb(143 84 29 / 0.025),
+    inset 0 1px 0 rgb(255 250 232 / 0.34) !important;
 }
 
 html.amber-paper .app-sidebar-panel,
 html.amber-paper .app-paper-panel {
   clip-path: var(--amber-paper-edge-clip);
-  filter: drop-shadow(0 2px 1px rgb(95 57 16 / 0.18)) drop-shadow(0 10px 16px rgb(95 57 16 / 0.24));
+  filter: drop-shadow(0 1px 0 rgb(95 57 16 / 0.12)) drop-shadow(0 8px 12px rgb(95 57 16 / 0.16));
   isolation: isolate;
   position: relative;
 }
@@ -483,7 +485,7 @@ html.amber-paper .app-paper-panel::after {
     linear-gradient(180deg, rgb(111 66 19 / 0.2), transparent 10px, transparent calc(100% - 10px), rgb(111 66 19 / 0.24)),
     radial-gradient(circle at 8% 4%, rgb(255 246 215 / 0.45), transparent 11%),
     radial-gradient(circle at 94% 96%, rgb(129 75 22 / 0.14), transparent 15%),
-    repeating-linear-gradient(96deg, transparent 0 13px, rgb(109 69 25 / 0.035) 13px 14px, transparent 14px 27px);
+    repeating-linear-gradient(96deg, transparent 0 13px, rgb(109 69 25 / 0.02) 13px 14px, transparent 14px 27px);
   -webkit-mask:
     linear-gradient(#000 0 0) top / 100% 16px no-repeat,
     linear-gradient(#000 0 0) bottom / 100% 16px no-repeat,
@@ -497,32 +499,51 @@ html.amber-paper .app-paper-panel::after {
 }
 
 html.amber-paper .app-content-area {
-  background-color: rgb(239 227 197);
+  background-color: rgb(246 239 220);
+}
+
+html.amber-paper .modern-workspace {
+  background:
+    radial-gradient(circle at 25% 12%, rgb(255 238 195 / 0.08), transparent 28%),
+    radial-gradient(circle at 82% 88%, rgb(95 57 16 / 0.05), transparent 36%),
+    var(--amber-paper-fiber-image),
+    var(--amber-paper-noise-image),
+    rgb(239 231 214) !important;
+}
+
+html.amber-paper .modern-floating-card {
+  background-color: rgb(248 240 221) !important;
+  border-color: rgb(206 187 154) !important;
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 250 232 / 0.34),
+    0 1px 0 rgb(255 255 255 / 0.2) inset,
+    0 10px 18px rgb(95 57 16 / 0.08) !important;
 }
 
 html.amber-paper .rounded-md.border,
 html.amber-paper .rounded-lg.border,
 html.amber-paper .rounded-xl.border {
-  border-color: rgb(214 192 156);
+  border-color: rgb(206 187 154);
 }
 
 html.amber-paper input,
 html.amber-paper textarea,
 html.amber-paper select,
 html.amber-paper [role="combobox"] {
-  background-color: rgb(246 236 213 / 0.72);
-  border-color: rgb(214 192 156);
+  background-color: rgb(250 244 231 / 0.78);
+  border-color: rgb(206 187 154);
 }
 
 html.amber-paper input:focus,
 html.amber-paper textarea:focus,
 html.amber-paper select:focus,
 html.amber-paper [role="combobox"]:focus {
-  border-color: rgb(163 123 69);
+  border-color: rgb(154 118 69);
 }
 
 html.amber-paper * {
-  scrollbar-color: rgb(198 170 115) rgb(231 214 178);
+  scrollbar-color: rgb(198 170 115) rgb(236 226 202);
 }
 
 html.amber-paper ::-webkit-scrollbar {
@@ -531,12 +552,12 @@ html.amber-paper ::-webkit-scrollbar {
 }
 
 html.amber-paper ::-webkit-scrollbar-track {
-  background: rgb(231 214 178);
+  background: rgb(236 226 202);
 }
 
 html.amber-paper ::-webkit-scrollbar-thumb {
   background: rgb(198 170 115);
-  border: 2px solid rgb(231 214 178);
+  border: 2px solid rgb(236 226 202);
   border-radius: 999px;
 }
 
@@ -547,9 +568,9 @@ html.amber-paper ::selection {
 
 html.amber-paper .app-panel-gutter {
   background:
-    radial-gradient(circle at 25% 12%, rgb(255 238 195 / 0.22), transparent 28%),
-    radial-gradient(circle at 82% 88%, rgb(95 57 16 / 0.18), transparent 36%),
-    rgb(199 169 111);
+    radial-gradient(circle at 25% 12%, rgb(255 238 195 / 0.12), transparent 28%),
+    radial-gradient(circle at 82% 88%, rgb(95 57 16 / 0.08), transparent 36%),
+    rgb(223 203 159);
 }
 
 html.amber-paper .splitpanes--vertical > .splitpanes__splitter,

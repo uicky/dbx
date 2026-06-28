@@ -9,6 +9,7 @@ type LucideIconNode = Array<[string, Record<string, string>]>;
 
 export const EDITOR_FONT_SIZE_CSS_VAR = "--dbx-editor-font-size";
 export const EDITOR_FONT_FAMILY_CSS_VAR = "--dbx-editor-font-family";
+export const EDITOR_BACKGROUND_CSS_VAR = "--dbx-editor-background";
 const EDITOR_SELECTION_BACKGROUND_CSS_VAR = "--dbx-editor-selection-background";
 
 const SUPPORTS_COLOR_MIX = typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("color", "color-mix(in oklch, black 50%, white)");
@@ -73,6 +74,7 @@ function createCustomTheme(EditorView: typeof import("@codemirror/view").EditorV
       "&": {
         backgroundColor: c.background,
         color: c.foreground,
+        [EDITOR_BACKGROUND_CSS_VAR]: c.background,
         [EDITOR_SELECTION_BACKGROUND_CSS_VAR]: c.selection,
       },
       ".cm-content": {
@@ -248,6 +250,7 @@ function createAmberPaperTheme(EditorView: typeof import("@codemirror/view").Edi
       "&": {
         backgroundColor: "#f4ead1",
         color: "#5f4a2b",
+        [EDITOR_BACKGROUND_CSS_VAR]: "#f4ead1",
         [EDITOR_SELECTION_BACKGROUND_CSS_VAR]: "rgb(213 184 120 / 0.55)",
       },
       "&.cm-focused": {

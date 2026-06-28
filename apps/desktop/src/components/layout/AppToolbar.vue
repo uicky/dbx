@@ -59,12 +59,6 @@ const settingsStore = useSettingsStore();
 const toolbarItems = computed(() => settingsStore.editorSettings.toolbarItems);
 const { isMac, isDesktop, showControls, isMaximized, isFullscreen, minimize, toggleMaximize, close } = useWindowControls();
 
-const themeItems = computed(() => [
-  { value: "light", label: t("toolbar.themeLight"), icon: Sun },
-  { value: "dark", label: t("toolbar.themeDark"), icon: Moon },
-  { value: "amber-paper", label: t("toolbar.themeAmberPaper"), icon: Eye },
-  { value: "system", label: t("toolbar.themeSystem"), icon: SunMoon },
-]);
 const themeTriggerIcon = computed(() => {
   if (props.themeMode === "system") return SunMoon;
   if (props.themeMode === "amber-paper") return Eye;
@@ -383,7 +377,7 @@ const checkingUpdates = computed(() => props.checkingUpdates);
         {{ t("transfer.dataTransfer") }}
       </Button>
 
-      <Button v-if="toolbarItems.driverManager" variant="ghost" size="sm" class="h-8 px-2 text-xs gap-1" :class="{ 'bg-accent': showDriverStore }" @click="emit('open-driver-store')">
+      <Button v-if="toolbarItems.driverManager" variant="ghost" size="sm" class="h-8 px-2 text-xs gap-1" :class="{ 'bg-muted text-foreground': showDriverStore }" @click="emit('open-driver-store')">
         <Package class="h-3.5 w-3.5" />
         {{ t("toolbar.driverManager") }}
         <span v-if="agentDriverUpdateCount > 0" class="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white" :aria-label="t('toolbar.updatableDriverCount')">
@@ -445,7 +439,7 @@ const checkingUpdates = computed(() => props.checkingUpdates);
 
       <Tooltip v-if="toolbarItems.sqlLibrary">
         <TooltipTrigger as-child>
-          <Button v-show="isRightItemVisible('sqlLibrary')" variant="ghost" size="icon" class="h-8 w-8 shrink-0" :class="{ 'bg-accent': showSqlLibrary }" @click="emit('toggle-sql-library')">
+          <Button v-show="isRightItemVisible('sqlLibrary')" variant="ghost" size="icon" class="h-8 w-8 shrink-0" :class="{ 'bg-muted text-foreground': showSqlLibrary }" @click="emit('toggle-sql-library')">
             <BookMarked class="h-4 w-4" />
           </Button>
         </TooltipTrigger>
@@ -454,7 +448,7 @@ const checkingUpdates = computed(() => props.checkingUpdates);
 
       <Tooltip v-if="toolbarItems.history">
         <TooltipTrigger as-child>
-          <Button v-show="isRightItemVisible('history')" variant="ghost" size="icon" class="h-8 w-8 shrink-0" :class="{ 'bg-accent': showHistory }" @click="emit('toggle-history')">
+          <Button v-show="isRightItemVisible('history')" variant="ghost" size="icon" class="h-8 w-8 shrink-0" :class="{ 'bg-muted text-foreground': showHistory }" @click="emit('toggle-history')">
             <History class="h-4 w-4" />
           </Button>
         </TooltipTrigger>
@@ -463,7 +457,7 @@ const checkingUpdates = computed(() => props.checkingUpdates);
 
       <Tooltip v-if="toolbarItems.ai">
         <TooltipTrigger as-child>
-          <Button v-show="isRightItemVisible('ai')" variant="ghost" size="icon" class="h-8 w-8 shrink-0" :class="{ 'bg-accent': showAiPanel }" @click="emit('toggle-ai')">
+          <Button v-show="isRightItemVisible('ai')" variant="ghost" size="icon" class="h-8 w-8 shrink-0" :class="{ 'bg-muted text-foreground': showAiPanel }" @click="emit('toggle-ai')">
             <Bot class="h-4 w-4" />
           </Button>
         </TooltipTrigger>

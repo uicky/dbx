@@ -876,6 +876,16 @@ function clearMessages() {
   draftBeforeHistory.value = "";
 }
 
+function applySuggestion(action: "explain" | "optimize" | "write") {
+  const prompts: Record<string, string> = {
+    explain: t("ai.suggestionExplain"),
+    optimize: t("ai.suggestionOptimize"),
+    write: t("ai.suggestionWrite"),
+  };
+  prompt.value = prompts[action] || "";
+  promptTextareaRef.value?.focus();
+}
+
 async function persistConversation() {
   if (!messages.value.length || !props.connection) return;
   if (!conversationId.value) conversationId.value = uuid();
@@ -1087,9 +1097,21 @@ async function openExternalUrl(url: string) {
       </Button>
     </div>
 
-    <div v-if="messages.length === 0" class="flex-1 min-h-0 flex flex-col items-center justify-center text-center text-muted-foreground">
-      <Bot class="h-10 w-10 mb-3 opacity-30" />
-      <p class="text-sm">{{ t("ai.welcome") }}</p>
+    <div v-if="messages.length === 0" class="flex-1 min-h-0 flex flex-col items-center justify-center text-center text-muted-foreground px-4">
+      <Bot class="h-11 w-11 mb-3 opacity-35" />
+      <p class="text-sm mb-4 max-w-[18rem] leading-relaxed">{{ t("ai.welcome") }}</p>
+      <div v-if="props.connection" class="flex flex-col gap-2.5 w-full max-w-[220px]">
+        <button class="rounded-lg border bg-muted/40 px-3 py-2 text-xs cursor-pointer hover:bg-muted transition-colors text-left" @click="applySuggestion('explain')">
+          {{ t("ai.suggestionExplain") }}
+        </button>
+        <button class="rounded-lg border bg-muted/40 px-3 py-2 text-xs cursor-pointer hover:bg-muted transition-colors text-left" @click="applySuggestion('optimize')">
+          {{ t("ai.suggestionOptimize") }}
+        </button>
+        <button class="rounded-lg border bg-muted/40 px-3 py-2 text-xs cursor-pointer hover:bg-muted transition-colors text-left" @click="applySuggestion('write')">
+          {{ t("ai.suggestionWrite") }}
+        </button>
+      </div>
+      <p v-else class="text-xs text-muted-foreground/60">{{ t("ai.suggestionConnectFirst") }}</p>
     </div>
     <ScrollArea v-else ref="scrollRef" class="min-h-0 flex-1 overflow-hidden">
       <div class="flex flex-col gap-3 p-3">
@@ -1196,7 +1218,7 @@ async function openExternalUrl(url: string) {
     </ScrollArea>
 
     <div class="p-2">
-      <div ref="promptPanelRef" class="relative rounded-lg border bg-background">
+      <div ref="promptPanelRef" class="relative rounded-lg border border-border/70 bg-[color:var(--background)] shadow-[0_1px_0_rgb(255_255_255/0.35)_inset,0_8px_14px_rgb(0_0_0/0.03)]">
         <div class="resize-handle" @mousedown="startResize"></div>
         <div class="px-2 pb-2 pt-1">
           <div v-if="connectionStore.connections.length" class="flex items-center gap-1 mb-1 text-xs text-foreground/80">
@@ -1294,7 +1316,7 @@ async function openExternalUrl(url: string) {
             ref="promptTextareaRef"
             v-model="prompt"
             :style="{ height: `${textareaHeight}px`, maxHeight: `${maxTextareaHeight()}px` }"
-            class="w-full resize-none bg-transparent text-xs outline-none placeholder:text-muted-foreground mb-1"
+            class="mb-1 w-full resize-none bg-transparent text-xs outline-none placeholder:text-muted-foreground/70"
             :placeholder="activePlaceholder"
             @input="refreshMentionState"
             @click="refreshMentionState"
@@ -1346,10 +1368,16 @@ async function openExternalUrl(url: string) {
                 </span>
               </template>
             </SearchableSelect>
-            <button v-if="isGenerating" class="h-7 w-7 shrink-0 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center" :title="t('ai.stopGenerating')" @click="cancelStream">
+            <button v-if="isGenerating" class="h-7 w-7 shrink-0 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm" :title="t('ai.stopGenerating')" @click="cancelStream">
               <Square class="h-3.5 w-3.5" />
             </button>
-            <button v-else class="h-7 w-7 shrink-0 rounded-full bg-foreground text-background flex items-center justify-center disabled:opacity-30" :disabled="!prompt.trim() || !props.tab?.database" @click="send">
+            <button
+              v-else
+              class="h-7 w-7 shrink-0 rounded-full flex items-center justify-center disabled:opacity-30 transition-colors shadow-sm"
+              :class="prompt.trim() ? 'bg-primary text-primary-foreground' : 'bg-foreground text-background'"
+              :disabled="!prompt.trim() || !props.tab?.database"
+              @click="send"
+            >
               <ArrowUp class="h-4 w-4" />
             </button>
           </div>

@@ -56,7 +56,7 @@ export interface DesktopSettings {
 
 export type DesktopIconTheme = "default" | "black";
 
-export type InterfaceLayout = "separated" | "classic";
+export type InterfaceLayout = "separated" | "classic" | "modern";
 
 export type UpdateDownloadSource = "official" | "cnb";
 
@@ -329,7 +329,7 @@ export interface EditorSettings {
   wordWrap: boolean;
   confirmDangerousSqlExecution: boolean;
   compactTabTitle: boolean;
-  appLayout: "separated" | "classic";
+  appLayout: InterfaceLayout;
   pageSize: number;
   infiniteScroll: boolean;
   infiniteScrollMaxRows: number;
@@ -502,6 +502,10 @@ function normalizeUpdateDownloadSource(value: unknown): UpdateDownloadSource {
   return value === "cnb" ? "cnb" : DEFAULT_EDITOR_SETTINGS.updateDownloadSource;
 }
 
+function normalizeInterfaceLayout(value: unknown): InterfaceLayout {
+  return value === "separated" || value === "classic" || value === "modern" ? value : DEFAULT_EDITOR_SETTINGS.appLayout;
+}
+
 function normalizeDisconnectTabHandlingMode(value: unknown, legacyCloseTabsOnDisconnect?: unknown): DisconnectTabHandlingMode {
   if (DISCONNECT_TAB_HANDLING_MODES.includes(value as DisconnectTabHandlingMode)) {
     return value as DisconnectTabHandlingMode;
@@ -608,7 +612,7 @@ export function normalizeEditorSettings(settings: Partial<EditorSettings>, exist
     wordWrap: settings.wordWrap ?? DEFAULT_EDITOR_SETTINGS.wordWrap,
     confirmDangerousSqlExecution: settings.confirmDangerousSqlExecution ?? DEFAULT_EDITOR_SETTINGS.confirmDangerousSqlExecution,
     compactTabTitle: settings.compactTabTitle ?? DEFAULT_EDITOR_SETTINGS.compactTabTitle,
-    appLayout: settings.appLayout ?? DEFAULT_EDITOR_SETTINGS.appLayout,
+    appLayout: normalizeInterfaceLayout(settings.appLayout),
     pageSize: normalizeResultPageSize(settings.pageSize),
     infiniteScroll: settings.infiniteScroll ?? DEFAULT_EDITOR_SETTINGS.infiniteScroll,
     infiniteScrollMaxRows: typeof settings.infiniteScrollMaxRows === "number" && settings.infiniteScrollMaxRows >= 1000 && settings.infiniteScrollMaxRows <= 50000 ? Math.round(settings.infiniteScrollMaxRows) : DEFAULT_EDITOR_SETTINGS.infiniteScrollMaxRows,

@@ -249,7 +249,7 @@ function connectionById(connectionId: string): ConnectionConfig | undefined {
           :search-placeholder="t('editor.searchConnection')"
           :empty-text="t('grid.noSearchResults')"
           :loading-text="t('common.loading')"
-          trigger-class="font-medium text-foreground"
+          trigger-class="text-[11px] leading-none font-medium text-foreground"
           :display-name="connectionDisplayName"
           @update:model-value="(connectionId) => emit('changeConnection', connectionId)"
         >
@@ -282,7 +282,7 @@ function connectionById(connectionId: string): ConnectionConfig | undefined {
           :loading-text="t('common.loading')"
           :loading="loadingDatabaseOptions[activeConnection?.id || '']"
           :display-name="databaseDisplayName"
-          trigger-class="gap-1.5"
+          trigger-class="gap-1.5 text-[11px] leading-none"
           @update:model-value="(database) => emit('changeDatabase', database)"
           @update:open="
             (open: boolean) => {
@@ -292,7 +292,7 @@ function connectionById(connectionId: string): ConnectionConfig | undefined {
         >
           <template #trigger-label="{ label, loading }">
             <Database class="h-3.5 w-3.5 shrink-0" />
-            <span class="truncate">{{ loading ? t("common.loading") : label }}</span>
+            <span class="truncate text-[11px] leading-none">{{ loading ? t("common.loading") : label }}</span>
           </template>
           <template #option-label="{ label }">
             <TruncatedTextTooltip :text="label" class="min-w-0 flex-1" side="left" :side-offset="8" />
@@ -322,7 +322,7 @@ function connectionById(connectionId: string): ConnectionConfig | undefined {
             }
           "
         >
-          <SelectTrigger class="h-6 w-auto max-w-56 border-0 bg-transparent px-1 text-xs shadow-none focus:ring-0">
+          <SelectTrigger class="h-5 w-auto max-w-56 border-0 bg-transparent px-1 text-[11px] shadow-none focus:ring-0">
             <SelectValue :placeholder="activeConnection && isLoadingSchemas(activeConnection.id, schemaDatabaseKey) ? t('common.loading') : t('editor.selectSchema')">
               {{ activeSchemaValue || t("editor.selectSchema") }}
             </SelectValue>

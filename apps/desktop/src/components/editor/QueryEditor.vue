@@ -2547,12 +2547,12 @@ defineExpose({ openSearch, openReplace, scrollCursorIntoView, requestExecute });
 </script>
 
 <template>
-  <div class="h-full w-full overflow-hidden relative" @gesturestart="onEditorGestureStart" @gesturechange="onEditorGestureChange" @gestureend="onEditorGestureEnd">
+  <div class="query-editor-shell h-full w-full overflow-hidden relative" @gesturestart="onEditorGestureStart" @gesturechange="onEditorGestureChange" @gestureend="onEditorGestureEnd">
     <CustomContextMenu :items="contextMenuItems" v-slot="{ onContextMenu }">
       <div
         ref="editorRef"
         data-query-editor-root
-        class="h-full w-full overflow-hidden"
+        class="query-editor-mount h-full w-full overflow-hidden"
         @contextmenu="
           (e: MouseEvent) => {
             if (view) syncContextMenuStateAtEvent(view, e);
@@ -2567,6 +2567,22 @@ defineExpose({ openSearch, openReplace, scrollCursorIntoView, requestExecute });
 </template>
 
 <style scoped>
+.query-editor-shell,
+.query-editor-mount {
+  background: var(--dbx-editor-background, hsl(var(--background)));
+  color: hsl(var(--foreground));
+}
+
+.query-editor-mount :deep(.cm-editor) {
+  height: 100%;
+  background: var(--dbx-editor-background, hsl(var(--background)));
+}
+
+.query-editor-mount :deep(.cm-scroller) {
+  min-height: 100%;
+  background: var(--dbx-editor-background, hsl(var(--background)));
+}
+
 .query-editor--table-navigation-hover :deep(.cm-content),
 .query-editor--table-navigation-hover :deep(.cm-line) {
   cursor: pointer;

@@ -13,6 +13,7 @@ import { useToast } from "@/composables/useToast";
 defineProps<{
   sidebarWidth: number;
   classicLayout?: boolean;
+  modernLayout?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -53,9 +54,9 @@ defineExpose({ focusSearch });
 </script>
 
 <template>
-  <div class="app-sidebar-panel h-full shrink-0 relative select-none" :class="classicLayout ? '' : 'rounded-md border border-border/80 bg-background'" :style="{ width: sidebarWidth + 'px' }">
+  <div class="app-sidebar-panel h-full shrink-0 relative select-none" :class="modernLayout ? 'overflow-hidden' : classicLayout ? 'border-r border-border/60' : 'rounded-md border border-border/80 bg-background shadow-sm'" :style="{ width: sidebarWidth + 'px' }">
     <div class="h-full flex flex-col overflow-hidden">
-      <div class="flex items-center gap-px px-3 text-xs font-medium text-muted-foreground border-b bg-muted/20" :class="classicLayout ? 'h-9' : 'h-10'">
+      <div class="flex items-center gap-0.5 px-3 text-xs font-medium text-muted-foreground border-b bg-muted/20" :class="classicLayout ? 'h-9' : 'h-10'">
         <span class="flex self-stretch items-center truncate" data-tauri-drag-region>{{ t("sidebar.connections") }}</span>
         <span class="flex-1 self-stretch" data-tauri-drag-region />
         <Tooltip>
@@ -106,7 +107,7 @@ defineExpose({ focusSearch });
         </Tooltip>
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon" class="h-6 w-6" @click="emit('collapse')">
+            <Button variant="ghost" size="icon" class="ml-0.5 pl-1 border-l border-border/60 h-6 w-6" @click="emit('collapse')">
               <ChevronsLeft class="h-3.5 w-3.5" />
             </Button>
           </TooltipTrigger>

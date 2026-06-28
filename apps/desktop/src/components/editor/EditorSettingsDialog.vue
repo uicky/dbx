@@ -265,12 +265,14 @@ const iconThemeDescRef = {
   default: ref<HTMLElement | null>(null),
   black: ref<HTMLElement | null>(null),
 };
-const layoutDescTruncated = { separated: ref<boolean>(false), classic: ref<boolean>(false) };
+const layoutDescTruncated = { modern: ref<boolean>(false), separated: ref<boolean>(false), classic: ref<boolean>(false) };
 const layoutDescRefs = {
+  modern: ref<HTMLElement | null>(null),
   separated: ref<HTMLElement | null>(null),
   classic: ref<HTMLElement | null>(null),
 };
 let layoutDescObservers: Record<InterfaceLayout, ResizeObserver | undefined> = {
+  modern: undefined,
   separated: undefined,
   classic: undefined,
 };
@@ -291,6 +293,7 @@ function observeElementTruncation(el: Ref<HTMLElement | null>, truncated: Ref<bo
 }
 
 function initTruncationObservers() {
+  layoutDescObservers.modern = observeElementTruncation(layoutDescRefs.modern, layoutDescTruncated.modern);
   layoutDescObservers.separated = observeElementTruncation(layoutDescRefs.separated, layoutDescTruncated.separated);
   layoutDescObservers.classic = observeElementTruncation(layoutDescRefs.classic, layoutDescTruncated.classic);
   iconThemeDescObservers.default = observeElementTruncation(iconThemeDescRef.default, iconThemeDescTruncated.default);
@@ -298,6 +301,7 @@ function initTruncationObservers() {
 }
 
 function cleanupTruncationObservers() {
+  layoutDescObservers.modern?.disconnect();
   layoutDescObservers.separated?.disconnect();
   layoutDescObservers.classic?.disconnect();
   iconThemeDescObservers.default?.disconnect();
@@ -314,6 +318,7 @@ function setIconThemeDescRef(theme: DesktopIconTheme, el: unknown) {
 
 function checkLayoutDescTruncation() {
   checkTruncationForRefs([
+    { el: layoutDescRefs.modern, truncated: layoutDescTruncated.modern },
     { el: layoutDescRefs.separated, truncated: layoutDescTruncated.separated },
     { el: layoutDescRefs.classic, truncated: layoutDescTruncated.classic },
   ]);
@@ -2160,7 +2165,22 @@ watch(
 
               <div class="space-y-2">
                 <Label>{{ t("settings.appLayout") }}</Label>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-3 gap-2">
+                  <Button type="button" variant="outline" class="h-auto justify-start border p-3" :class="editAppLayout === 'modern' ? 'border-blue-300 ring-2 ring-blue-300/50' : ''" @click="setAppLayout('modern')">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger as-child>
+                          <div class="w-full min-w-0 text-left">
+                            <div class="text-sm font-medium">{{ t("settings.appLayoutModern") }}</div>
+                            <div :ref="(el) => setLayoutDescRef('modern', el)" class="text-xs text-muted-foreground truncate">{{ t("settings.appLayoutModernDescription") }}</div>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent v-if="layoutDescTruncated.modern.value" class="max-w-[320px] text-xs leading-relaxed">
+                          {{ t("settings.appLayoutModernDescription") }}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </Button>
                   <Button type="button" variant="outline" class="h-auto justify-start border p-3" :class="editAppLayout === 'separated' ? 'border-blue-300 ring-2 ring-blue-300/50' : ''" @click="setAppLayout('separated')">
                     <TooltipProvider>
                       <Tooltip>

@@ -63,6 +63,7 @@ import {
   PanelRight,
   TableProperties,
   Database,
+  Columns3,
 } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import QueryLoadingState from "@/components/common/QueryLoadingState.vue";
@@ -215,6 +216,7 @@ const props = defineProps<{
   fullExportResult?: (onProgress?: (info: { rowsExported: number; totalRows: number | null }) => void) => Promise<QueryResult | undefined>;
   queryResultExportRequest?: (options: { exportId: string; filePath: string; format: "csv" | "xlsx" }) => Promise<api.QueryResultExportRequest | undefined>;
   allExportResults?: Array<{ sheetName: string; result: QueryResult }>;
+  exportFileBaseName?: string;
   customSaveHandler?: import("@/composables/useDataGridEditor").CustomSaveHandler;
 }>();
 
@@ -323,6 +325,7 @@ const dataGridRenderMode = computed(() => settingsStore.editorSettings.dataGridR
 const compactDataGridToolbar = computed(() => dataGridTopbarWidth.value > 0 && dataGridTopbarWidth.value < DATA_GRID_COMPACT_TOPBAR_WIDTH);
 const infiniteScrollEnabled = computed(() => settingsStore.editorSettings.infiniteScroll);
 const infiniteScrollMaxRows = computed(() => settingsStore.editorSettings.infiniteScrollMaxRows);
+const expandedCellEditor = ref<{ rowId: number; col: number } | null>(null);
 
 function headerColumnComment(column: string): string {
   if (!showColumnCommentsInHeader.value) return "";
@@ -1631,6 +1634,8 @@ const gridVerticalScrollbarDragging = ref(false);
 let gridHorizontalScrollbarFrame = 0;
 let gridHorizontalScrollbarResizeObserver: ResizeObserver | null = null;
 let dataGridTopbarResizeObserver: ResizeObserver | null = null;
+let cellEditResizeObserver: ResizeObserver | null = null;
+let resetCellEditTextareaScrollOnResize = false;
 let gridHorizontalScrollbarDragState: {
   trackRect: DOMRect;
   thumbOffsetPx: number;
@@ -1644,6 +1649,9 @@ const nullColumnsHidden = ref(false);
 const autoHiddenNullColumnIndexes = ref<Set<number>>(new Set());
 const highlightedColumnIndex = ref<number | null>(null);
 let highlightedColumnTimer = 0;
+
+const goToColumnOpen = ref(false);
+const goToColumnSearch = ref("");
 const columnOrderKeys = computed(() => uniqueDataGridColumnOrderKeys(props.result.columns, props.sourceColumns));
 const columnLayoutScopeKey = computed(() =>
   dataGridColumnLayoutScopeKey({
@@ -1665,6 +1673,18 @@ const displayableColumnIndexes = computed(() =>
     .filter(({ column }) => !isHiddenGridColumn(props.databaseType, column, props.tableMeta?.primaryKeys ?? []))
     .map(({ index }) => index),
 );
+const goToColumnItems = computed(() =>
+  displayableColumnIndexes.value.map((index) => ({
+    index,
+    name: props.result.columns[index] ?? `#${index + 1}`,
+    sourceName: props.sourceColumns?.[index],
+  })),
+);
+const filteredGoToColumns = computed(() => {
+  const query = goToColumnSearch.value.trim().toLocaleLowerCase();
+  if (!query) return goToColumnItems.value;
+  return goToColumnItems.value.filter((column) => column.name.toLocaleLowerCase().includes(query) || column.sourceName?.toLocaleLowerCase().includes(query));
+});
 const orderedDisplayableColumnIndexes = computed(() =>
   orderedColumnIndexes({
     availableIndexes: displayableColumnIndexes.value,
@@ -1776,12 +1796,33 @@ const firstVisibleColumnIndex = computed(() => visibleColumnIndexes.value[0] ?? 
 function actualColumnIndex(visibleColumnIndex: number): number {
   return visibleColumnIndexes.value[visibleColumnIndex] ?? visibleColumnIndex;
 }
+function scrollToColumn(columnIndex: number) {
+  goToColumnOpen.value = false;
+  goToColumnSearch.value = "";
+  scrollToColumnIndex(columnIndex);
+  gridRef.value?.focus();
+}
+
+function onGoToColumnKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape") {
+    goToColumnOpen.value = false;
+    goToColumnSearch.value = "";
+  }
+}
+
+watch(goToColumnOpen, (open) => {
+  if (!open) goToColumnSearch.value = "";
+});
+
 function matchesTableInfoColumn(resultColumn: string, sourceColumn: string | undefined, columnName: string): boolean {
   const target = columnName.toLocaleLowerCase();
   return resultColumn.toLocaleLowerCase() === target || sourceColumn?.toLocaleLowerCase() === target;
 }
 function scrollToTableInfoColumn(columnName: string) {
   const columnIndex = props.result.columns.findIndex((column, index) => matchesTableInfoColumn(column, props.sourceColumns?.[index], columnName));
+  scrollToColumnIndex(columnIndex);
+}
+function scrollToColumnIndex(columnIndex: number) {
   if (columnIndex < 0 || !displayableColumnIndexes.value.includes(columnIndex)) return;
 
   if (hiddenColumnIndexes.value.has(columnIndex)) {
@@ -2877,6 +2918,56 @@ function canEditCellItem(item: RowItem | undefined, columnIndex: number): boolea
   return true;
 }
 
+function cellUsesExpandedEditor(rowId: number | undefined, columnIndex: number): boolean {
+  return !!expandedCellEditor.value && expandedCellEditor.value.rowId === rowId && expandedCellEditor.value.col === columnIndex;
+}
+
+function startCellEdit(rowId: number, columnIndex: number, expanded: boolean) {
+  expandedCellEditor.value = expanded ? { rowId, col: columnIndex } : null;
+  startEdit(rowId, columnIndex);
+}
+
+function startDomCellEdit(rowId: number, columnIndex: number, displayText: string, event: MouseEvent) {
+  const item = getRowItem(rowId);
+  const editText = item ? cellEditorTextForValue(item.data[columnIndex], columnIndex) : displayText;
+  startCellEdit(rowId, columnIndex, cellEditContentNeedsExpandedEditor({ displayText, editText, target: event.currentTarget }));
+}
+
+function cellEditContentNeedsExpandedEditor(options: { displayText: string; editText: string; target: EventTarget | null }): boolean {
+  const text = options.editText || options.displayText;
+  if (text.includes("\n") || text.includes("\r")) return true;
+  if (text.length > options.displayText.length) return true;
+  return cellTextOverflowsElement(options.displayText, options.target);
+}
+
+function cellEditorTextForValue(value: CellValue | undefined, columnIndex: number): string {
+  return dataGridCellEditorText({
+    value: value ?? null,
+    databaseType: props.databaseType,
+    columnInfo: tableColumnForGridColumn(columnIndex),
+  });
+}
+
+function cellTextOverflowsElement(text: string, target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const style = window.getComputedStyle(target);
+  const paddingLeft = Number.parseFloat(style.paddingLeft) || 0;
+  const paddingRight = Number.parseFloat(style.paddingRight) || 0;
+  const availableWidth = Math.max(0, target.clientWidth - paddingLeft - paddingRight - 2);
+  return measureCellTextWidth(text, style.font) > availableWidth;
+}
+
+function measureCellTextWidth(text: string, font: string): number {
+  const canvas = canvasRef.value ?? document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) return 0;
+  context.save();
+  context.font = font;
+  const width = context.measureText(text).width;
+  context.restore();
+  return width;
+}
+
 function tableColumnForGridColumn(columnIndex: number): ColumnInfo | undefined {
   const columnName = props.sourceColumns?.[columnIndex] ?? props.result.columns[columnIndex];
   if (!columnName) return undefined;
@@ -2897,6 +2988,25 @@ function isEnumGridColumn(columnIndex: number): boolean {
 
 function isEnumGridColumnNullable(columnIndex: number): boolean {
   return tableColumnForGridColumn(columnIndex)?.is_nullable ?? false;
+}
+
+function cellEditInputModeForColumn(columnIndex: number): "decimal" | "numeric" | undefined {
+  const dataType = normalizedColumnDataType(tableColumnForGridColumn(columnIndex));
+  if (isIntegerColumnType(dataType)) return "numeric";
+  if (isDecimalColumnType(dataType)) return "decimal";
+  return undefined;
+}
+
+function normalizedColumnDataType(column: ColumnInfo | undefined): string {
+  return (column?.data_type ?? "").trim().toLowerCase();
+}
+
+function isIntegerColumnType(dataType: string): boolean {
+  return /^(tinyint|smallint|mediumint|int|integer|bigint|serial|smallserial|bigserial|int2|int4|int8|uint|uint8|uint16|uint32|uint64)\b/.test(dataType);
+}
+
+function isDecimalColumnType(dataType: string): boolean {
+  return /^(decimal|numeric|number|float|double|real|money|smallmoney|dec|fixed)\b/.test(dataType);
 }
 
 function canDeleteRowItem(item: RowItem | undefined): boolean {
@@ -4072,12 +4182,6 @@ watch(
   { flush: "post" },
 );
 
-function toggleDataGridRenderMode() {
-  settingsStore.updateEditorSettings({
-    dataGridRenderMode: dataGridRenderMode.value === "canvas" ? "dom" : "canvas",
-  });
-}
-
 function canvasScrollerElement(): HTMLElement | null {
   const scroller = scrollerRef.value;
   if (!scroller) return null;
@@ -4351,7 +4455,17 @@ function onCanvasDblClick(event: MouseEvent) {
   const item = displayItemAt(hit.rowIndex);
   const actualColIdx = visibleColumnIndexes.value[hit.visibleColIdx];
   if (!item || actualColIdx === undefined || !canEditCellItem(item, actualColIdx)) return;
-  startEdit(item.id, actualColIdx);
+  startCellEdit(item.id, actualColIdx, canvasCellContentOverflows(item, actualColIdx, hit.visibleColIdx));
+}
+
+function canvasCellContentOverflows(item: RowItem, actualColIdx: number, visibleColIdx: number): boolean {
+  const cellWidth = renderedColumnWidths.value[visibleColIdx] ?? 0;
+  if (cellWidth <= 0) return false;
+  const displayText = formatCellCached(item.data[actualColIdx], actualColIdx);
+  const editText = cellEditorTextForValue(item.data[actualColIdx], actualColIdx);
+  if (editText.includes("\n") || editText.includes("\r") || editText.length > displayText.length) return true;
+  const textWidth = measureCellTextWidth(displayText, `400 13px ${settingsStore.editorSettings.fontFamily}`);
+  return textWidth > Math.max(0, cellWidth - 24);
 }
 
 function canvasCellViewportRect(rowIndex: number, visibleColIdx: number) {
@@ -4400,7 +4514,7 @@ const canvasEditingCell = computed(() => {
   if (rowIndex < 0 || visibleColIdx < 0) return null;
   const rect = canvasCellViewportRect(rowIndex, visibleColIdx);
   if (!rect) return null;
-  return { rowIndex, visibleColIdx, actualColIdx: editing.col, rect };
+  return { rowId: editing.rowId, rowIndex, visibleColIdx, actualColIdx: editing.col, rect };
 });
 
 function canvasEffectiveViewportWidth(): number {
@@ -4438,6 +4552,8 @@ const canvasDetailButtonCell = computed(() => {
   if (!useCanvasGridRows.value || isScrolling.value) return null;
   const target = hoveredDetailCell.value ?? quickDownloadMenuCell.value ?? (showCellDetail.value ? detailCell.value : null);
   if (!target || !cellDetailButtonVisible(target.rowIndex, target.col)) return null;
+  const editing = editingCell.value;
+  if (editing?.rowId === displayItems.value[target.rowIndex]?.id && editing.col === target.col) return null;
   const visibleColIdx = visibleColumnIndexes.value.indexOf(target.col);
   if (visibleColIdx < 0) return null;
   const rect = canvasCellViewportRect(target.rowIndex, visibleColIdx);
@@ -4530,6 +4646,7 @@ function pauseCanvasGridWork() {
   dataGridIsActive = false;
   canvasResizeObserver?.disconnect();
   canvasResizeObserver = null;
+  disconnectCellEditResizeObserver();
   dataGridTopbarResizeObserver?.disconnect();
   dataGridTopbarResizeObserver = null;
   canvasPixelRatioMediaQueryCleanup?.();
@@ -4568,6 +4685,7 @@ onUnmounted(() => {
   pauseCanvasGridWork();
   gridHorizontalScrollbarResizeObserver?.disconnect();
   dataGridTopbarResizeObserver?.disconnect();
+  disconnectCellEditResizeObserver();
   stopColumnHeaderDrag(false);
   stopGridHorizontalScrollbarDrag();
   stopGridVerticalScrollbarDrag();
@@ -4659,6 +4777,8 @@ const {
   fullExportResult: props.fullExportResult,
   queryResultExportRequest: props.queryResultExportRequest,
   allExportResults: computed(() => props.allExportResults),
+  currentResultLabel: computed(() => props.result.sourceLabel),
+  exportFileBaseName: computed(() => props.exportFileBaseName),
   exportProgressDialog,
   exportProgressState,
   exportCancelHandler,
@@ -5877,6 +5997,130 @@ function onCellContext(rowId: number, rowIndex: number, colIdx: number, visibleC
   void prefetchCopyStatements();
 }
 
+function onCellEditTextareaInput(event: Event) {
+  resetCellEditTextareaScrollOnResize = false;
+  const input = event.currentTarget as HTMLInputElement | HTMLTextAreaElement | null;
+  if (input instanceof HTMLTextAreaElement) {
+    resizeCellEditTextareaElement(input);
+    scheduleCellEditTextareaResize(input);
+  }
+}
+
+function onCellEditTextareaPaste(event: ClipboardEvent) {
+  const input = event.currentTarget as HTMLInputElement | HTMLTextAreaElement | null;
+  if (input instanceof HTMLTextAreaElement) scheduleCellEditTextareaResize(input);
+}
+
+function resizeCellEditTextareaElement(textarea: HTMLTextAreaElement | null) {
+  if (!textarea) return;
+  const textareaRect = textarea.getBoundingClientRect();
+  const visibleBottom = cellEditVisibleBottom(textarea);
+  const availableHeight = Math.max(36, Math.floor(visibleBottom - textareaRect.top - 10));
+  const metrics = cellEditTextMetrics(textarea);
+  const maxVisibleHeight = Math.ceil(metrics.lineHeight * 9.5 + metrics.verticalChrome);
+  const maxHeight = Math.min(maxVisibleHeight, availableHeight);
+  const naturalHeight = cellEditNaturalHeight(textarea, metrics);
+  const targetMinHeight = Math.max(64, Math.min(naturalHeight, 120));
+  const minHeight = Math.min(targetMinHeight, maxHeight);
+  textarea.style.setProperty("--cell-edit-min-height", `${minHeight}px`);
+  textarea.style.setProperty("--cell-edit-max-height", `${maxHeight}px`);
+  textarea.style.height = "auto";
+  textarea.style.height = `${Math.max(minHeight, Math.min(textarea.scrollHeight, maxHeight))}px`;
+  if (resetCellEditTextareaScrollOnResize) {
+    textarea.scrollTop = 0;
+    textarea.setSelectionRange?.(0, 0);
+  }
+}
+
+function cellEditTextMetrics(textarea: HTMLTextAreaElement): { lineHeight: number; verticalChrome: number } {
+  const computedStyle = window.getComputedStyle(textarea);
+  const lineHeight = Number.parseFloat(computedStyle.lineHeight) || 18;
+  const paddingTop = Number.parseFloat(computedStyle.paddingTop) || 0;
+  const paddingBottom = Number.parseFloat(computedStyle.paddingBottom) || 0;
+  const borderTop = Number.parseFloat(computedStyle.borderTopWidth) || 0;
+  const borderBottom = Number.parseFloat(computedStyle.borderBottomWidth) || 0;
+  return { lineHeight, verticalChrome: paddingTop + paddingBottom + borderTop + borderBottom };
+}
+
+function cellEditNaturalHeight(textarea: HTMLTextAreaElement, metrics = cellEditTextMetrics(textarea)): number {
+  const lines = Math.max(1, textarea.value.split(/\r\n|\r|\n/).length);
+  return Math.ceil(lines * metrics.lineHeight + metrics.verticalChrome);
+}
+
+function cellEditScrollerElement(textarea: HTMLTextAreaElement): HTMLElement | null {
+  return textarea.closest(".data-grid-scroller, .transpose-grid-scroller") as HTMLElement | null;
+}
+
+function cellEditVisibleBottom(textarea: HTMLTextAreaElement): number {
+  const bottoms: number[] = [];
+  const scroller = cellEditScrollerElement(textarea);
+  const root = gridRef.value;
+  if (scroller) bottoms.push(scroller.getBoundingClientRect().bottom);
+  if (root) bottoms.push(root.getBoundingClientRect().bottom);
+  if (typeof window !== "undefined") bottoms.push(window.innerHeight);
+
+  if (cellDetailPanelIsBottom.value && showCellDetail.value) {
+    const detailPanel = root?.querySelector<HTMLElement>("[data-cell-detail-panel]");
+    if (detailPanel) bottoms.push(detailPanel.getBoundingClientRect().top);
+  }
+
+  return Math.min(...bottoms.filter((bottom) => Number.isFinite(bottom)));
+}
+
+function scheduleCellEditTextareaResize(textarea: HTMLTextAreaElement | null) {
+  if (!textarea || typeof requestAnimationFrame !== "function") return;
+  requestAnimationFrame(() => {
+    resizeCellEditTextareaElement(textarea);
+    requestAnimationFrame(() => resizeCellEditTextareaElement(textarea));
+  });
+}
+
+function resizeActiveCellEditTextarea() {
+  const textarea = gridRef.value?.querySelector<HTMLTextAreaElement>(".cell-edit-input--expanded");
+  resizeCellEditTextareaElement(textarea ?? null);
+}
+
+function disconnectCellEditResizeObserver() {
+  cellEditResizeObserver?.disconnect();
+  cellEditResizeObserver = null;
+}
+
+function observeCellEditResizeBounds() {
+  disconnectCellEditResizeObserver();
+  if (!editingCell.value || typeof ResizeObserver === "undefined") return;
+  const textarea = gridRef.value?.querySelector<HTMLTextAreaElement>(".cell-edit-input--expanded");
+  const scroller = textarea ? cellEditScrollerElement(textarea) : null;
+  if (!textarea || !scroller) return;
+  cellEditResizeObserver = new ResizeObserver(scheduleActiveCellEditTextareaResize);
+  cellEditResizeObserver.observe(scroller);
+  cellEditResizeObserver.observe(textarea);
+  if (gridRef.value) cellEditResizeObserver.observe(gridRef.value);
+}
+
+function scheduleActiveCellEditTextareaResize() {
+  nextTick(() => {
+    resizeActiveCellEditTextarea();
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => {
+        resizeActiveCellEditTextarea();
+        requestAnimationFrame(resizeActiveCellEditTextarea);
+      });
+    }
+  });
+}
+
+watch(editingCell, (cell) => {
+  resetCellEditTextareaScrollOnResize = !!cell;
+  scheduleActiveCellEditTextareaResize();
+  if (cell) nextTick(observeCellEditResizeBounds);
+  else {
+    resetCellEditTextareaScrollOnResize = false;
+    expandedCellEditor.value = null;
+    disconnectCellEditResizeObserver();
+  }
+});
+watch(editValue, scheduleActiveCellEditTextareaResize);
+
 function onRowContext(rowId: number, rowIndex: number) {
   contextHeaderColumn.value = null;
   contextHeaderColumnIndex.value = null;
@@ -5967,12 +6211,16 @@ watch(
   () => settingsStore.editorSettings.cellDetailDrawerWidth,
   (height) => {
     if (!isResizingDetail.value) detailPanelHeight.value = clampCellDetailPanelSize(height);
+    scheduleActiveCellEditTextareaResize();
   },
 );
 
 watch(cellDetailPanelLayout, (layout) => {
   if (!isResizingDetail.value) detailPanelHeight.value = clampCellDetailPanelSize(detailPanelHeight.value, layout);
+  scheduleActiveCellEditTextareaResize();
 });
+
+watch([showCellDetail, activeCellDetail, cellDetailPanelIsBottom, detailPanelHeight], scheduleActiveCellEditTextareaResize);
 
 const ddlDrawerStyle = computed(() => ({
   width: `${ddlWidth.value}px`,
@@ -6606,7 +6854,7 @@ const gridContextMenuItems = computed<ContextMenuItem[]>(() => {
 </script>
 
 <template>
-  <div ref="gridRef" data-grid-root class="h-full flex flex-col overflow-hidden outline-none" :style="gridStyle" tabindex="0" @keydown="onGridKeydown" @paste="onGridPaste">
+  <div ref="gridRef" data-grid-root class="h-full flex flex-col overflow-hidden outline-none" :class="{ 'data-grid--editing-cell': !!editingCell }" :style="gridStyle" tabindex="0" @keydown="onGridKeydown" @paste="onGridPaste">
     <CustomContextMenu :items="gridContextMenuItems" v-slot="{ onContextMenu }">
       <div v-if="hasData || canShowWhereSearch" class="flex-1 flex flex-col overflow-hidden" @contextmenu="onContextMenu">
         <!-- Search bar -->
@@ -6939,14 +7187,34 @@ const gridContextMenuItems = computed<ContextMenuItem[]>(() => {
                 </TooltipTrigger>
                 <TooltipContent side="bottom">{{ t("grid.refresh") }} ({{ shortcutMod }}+R)</TooltipContent>
               </Tooltip>
-              <Tooltip>
+              <Tooltip v-if="props.result.columns.length">
                 <TooltipTrigger as-child>
-                  <Button variant="ghost" size="sm" :class="['data-grid-topbar-action-button h-5 shrink-0 text-xs px-1.5', compactDataGridToolbar ? 'data-grid-topbar-action-button--compact' : '', dataGridRenderMode === 'canvas' ? 'text-primary bg-primary/10' : '']" @click="toggleDataGridRenderMode">
-                    <SquareDashed class="data-grid-topbar-action-icon w-3 h-3" />
-                    <span class="data-grid-topbar-action-label" :class="{ 'data-grid-topbar-action-label--compact': compactDataGridToolbar }">{{ dataGridRenderMode === "canvas" ? t("grid.canvasRenderMode") : t("grid.domRenderMode") }}</span>
-                  </Button>
+                  <Popover v-model:open="goToColumnOpen">
+                    <PopoverTrigger as-child>
+                      <Button variant="ghost" size="sm" :class="['data-grid-topbar-action-button h-5 shrink-0 text-xs px-1.5', compactDataGridToolbar ? 'data-grid-topbar-action-button--compact' : '', goToColumnOpen ? 'text-primary bg-primary/10' : '']">
+                        <Columns3 class="data-grid-topbar-action-icon w-3 h-3" />
+                        <span class="data-grid-topbar-action-label" :class="{ 'data-grid-topbar-action-label--compact': compactDataGridToolbar }">{{ t("grid.goToColumn") }}</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" class="w-56 p-2" @keydown="onGoToColumnKeydown">
+                      <div class="relative mb-1">
+                        <Search class="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                        <input v-model="goToColumnSearch" :placeholder="t('grid.searchColumn')" class="h-8 w-full rounded-md border bg-transparent pl-7 pr-6 text-xs outline-none focus-visible:border-ring/50 focus-visible:ring-1 focus-visible:ring-ring/25" />
+                        <button v-if="goToColumnSearch" type="button" class="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" @click="goToColumnSearch = ''">
+                          <X class="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div class="max-h-56 overflow-auto rounded border">
+                        <button v-for="column in filteredGoToColumns" :key="column.index" type="button" class="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-xs hover:bg-accent hover:text-accent-foreground" @click="scrollToColumn(column.index)">
+                          <span class="min-w-0 truncate">{{ column.name }}</span>
+                          <span class="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground">#{{ column.index + 1 }}</span>
+                        </button>
+                        <div v-if="!filteredGoToColumns.length" class="px-2 py-3 text-center text-xs text-muted-foreground">{{ t("grid.noColumnsFound") }}</div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" class="max-w-sm"> {{ dataGridRenderMode === "canvas" ? t("grid.canvasRenderMode") : t("grid.domRenderMode") }} · {{ t("grid.renderModeHint") }} </TooltipContent>
+                <TooltipContent side="bottom">{{ t("grid.goToColumn") }}</TooltipContent>
               </Tooltip>
               <Tooltip v-if="editable && (tableMeta || customSaveHandler)">
                 <TooltipTrigger as-child>
@@ -7159,22 +7427,41 @@ const gridContextMenuItems = computed<ContextMenuItem[]>(() => {
                       @mouseenter="onTransposeCellMouseenter(cell.recordIndex, cell.valueIndex)"
                       @mouseleave="onCellMouseleave(cell.recordIndex, cell.valueIndex)"
                       @contextmenu="onTransposeCellContext(cell.recordIndex, cell.valueIndex, $event)"
-                      @dblclick.stop="canEditCellItem(displayItems[cell.recordIndex], cell.valueIndex) && startEdit(displayItems[cell.recordIndex].id, cell.valueIndex)"
+                      @dblclick.stop="canEditCellItem(displayItems[cell.recordIndex], cell.valueIndex) && startDomCellEdit(displayItems[cell.recordIndex].id, cell.valueIndex, cell.display, $event)"
                     >
                       <template v-if="editingCell?.rowId === displayItems[cell.recordIndex]?.id && editingCell?.col === cell.valueIndex">
                         <TemporalCellEditor v-if="temporalEditorKindForColumn(cell.valueIndex)" v-model="editValue" :kind="temporalEditorKindForColumn(cell.valueIndex)!" cell-layout="transpose" @cancel="cancelEdit" @commit="commitGridEdit" />
                         <EnumCellEditor v-else-if="isEnumGridColumn(cell.valueIndex)" v-model="editValue" :values="enumValuesForGridColumn(cell.valueIndex)" :nullable="isEnumGridColumnNullable(cell.valueIndex)" cell-layout="transpose" @cancel="cancelEdit" @commit="commitGridEdit" />
+                        <textarea
+                          v-else-if="cellUsesExpandedEditor(displayItems[cell.recordIndex]?.id, cell.valueIndex)"
+                          v-model="editValue"
+                          data-expanded-cell-editor="true"
+                          rows="1"
+                          :inputmode="cellEditInputModeForColumn(cell.valueIndex)"
+                          autocapitalize="off"
+                          autocorrect="off"
+                          spellcheck="false"
+                          class="cell-edit-input cell-edit-input--expanded absolute left-0 top-0 min-h-full bg-background px-1.5 py-1 text-[13px] leading-[18px] outline-none z-10"
+                          @blur="commitEditFromBlur"
+                          @click.stop
+                          @focus="onCellEditTextareaInput"
+                          @input="onCellEditTextareaInput"
+                          @keydown.stop="onEditKeydown"
+                          @paste.stop="onCellEditTextareaPaste"
+                        />
                         <input
                           v-else
                           v-model="editValue"
+                          :inputmode="cellEditInputModeForColumn(cell.valueIndex)"
                           autocapitalize="off"
                           autocorrect="off"
                           spellcheck="false"
                           class="cell-edit-input absolute inset-0 bg-background border-2 border-primary px-1.5 py-0 text-[13px] leading-[26px] outline-none z-10"
                           @blur="commitEditFromBlur"
                           @click.stop
+                          @input="onCellEditTextareaInput"
                           @keydown.stop="onEditKeydown"
-                          @paste.stop
+                          @paste.stop="onCellEditTextareaPaste"
                         />
                       </template>
                       <template v-else>
@@ -7574,7 +7861,7 @@ const gridContextMenuItems = computed<ContextMenuItem[]>(() => {
                     @contextmenu="onCanvasContext"
                     @dblclick="onCanvasDblClick"
                   />
-                  <div ref="canvasOverlayRef" class="canvas-grid-overlay dbx-data-grid-font-family sticky left-0 top-0 z-10 overflow-hidden" :style="canvasOverlayStyle">
+                  <div ref="canvasOverlayRef" class="canvas-grid-overlay dbx-data-grid-font-family sticky left-0 top-0 z-10 overflow-visible" :style="canvasOverlayStyle">
                     <div v-if="canvasEditingCell" class="absolute pointer-events-auto z-20 tabular-nums" :style="canvasEditingCellStyle" @mousedown.stop @click.stop>
                       <TemporalCellEditor v-if="temporalEditorKindForColumn(canvasEditingCell.actualColIdx)" v-model="editValue" :kind="temporalEditorKindForColumn(canvasEditingCell.actualColIdx)!" @cancel="cancelEdit" @commit="commitGridEdit" />
                       <EnumCellEditor
@@ -7585,17 +7872,36 @@ const gridContextMenuItems = computed<ContextMenuItem[]>(() => {
                         @cancel="cancelEdit"
                         @commit="commitGridEdit"
                       />
+                      <textarea
+                        v-else-if="cellUsesExpandedEditor(canvasEditingCell.rowId, canvasEditingCell.actualColIdx)"
+                        v-model="editValue"
+                        data-expanded-cell-editor="true"
+                        rows="1"
+                        :inputmode="cellEditInputModeForColumn(canvasEditingCell.actualColIdx)"
+                        autocapitalize="off"
+                        autocorrect="off"
+                        spellcheck="false"
+                        class="cell-edit-input cell-edit-input--expanded absolute left-0 top-0 min-h-full bg-background px-2.5 py-1 text-[13px] leading-[18px] outline-none z-10"
+                        @blur="commitEditFromBlur"
+                        @click.stop
+                        @focus="onCellEditTextareaInput"
+                        @input="onCellEditTextareaInput"
+                        @keydown.stop="onEditKeydown"
+                        @paste.stop="onCellEditTextareaPaste"
+                      />
                       <input
                         v-else
                         v-model="editValue"
+                        :inputmode="cellEditInputModeForColumn(canvasEditingCell.actualColIdx)"
                         autocapitalize="off"
                         autocorrect="off"
                         spellcheck="false"
                         class="cell-edit-input absolute inset-0 bg-background border-2 border-primary px-2.5 py-0 text-[13px] leading-[22px] outline-none z-10"
                         @blur="commitEditFromBlur"
                         @click.stop
+                        @input="onCellEditTextareaInput"
                         @keydown.stop="onEditKeydown"
-                        @paste.stop
+                        @paste.stop="onCellEditTextareaPaste"
                       />
                     </div>
                     <div v-if="canvasDetailButtonCell" class="absolute pointer-events-auto z-20 flex items-center gap-1" :style="canvasDetailButtonStyle" @mouseenter="keepCanvasDetailHover" @mouseleave="clearCanvasDetailHover">
@@ -7654,6 +7960,7 @@ const gridContextMenuItems = computed<ContextMenuItem[]>(() => {
                       'bg-primary/5': item.isNew && !isRowActive(item.displayIndex),
                       'bg-muted/30': !item.isNew && !item.isDeleted && !isRowActive(item.displayIndex) && item.displayIndex % 2 === 1,
                       'active-row': isRowActive(item.displayIndex) && !item.isDeleted,
+                      'relative z-20 overflow-visible': editingCell?.rowId === item.id,
                     }"
                     :data-row-index="item.displayIndex"
                   >
@@ -7684,28 +7991,49 @@ const gridContextMenuItems = computed<ContextMenuItem[]>(() => {
                         'tabular-nums': typeof item.data[col.actualColIdx] === 'number',
                         'cursor-text hover:bg-gray-200 dark:hover:bg-gray-800': !isScrolling && canEditCellItem(item, col.actualColIdx),
                         'line-through': item.isDeleted,
+                        'overflow-visible z-20 border-r-transparent': editingCell?.rowId === item.id && editingCell?.col === col.actualColIdx,
+                        'overflow-hidden': !(editingCell?.rowId === item.id && editingCell?.col === col.actualColIdx),
                       }"
                       @mousedown="handleDataCellMousedown(item.displayIndex, col.visibleColIdx, item.id, $event)"
                       @mouseenter="onCellMouseenter(item.displayIndex, col.visibleColIdx, col.actualColIdx)"
                       @mouseleave="onCellMouseleave(item.displayIndex, col.actualColIdx)"
-                      @dblclick="canEditCellItem(item, col.actualColIdx) && startEdit(item.id, col.actualColIdx)"
+                      @dblclick="canEditCellItem(item, col.actualColIdx) && startDomCellEdit(item.id, col.actualColIdx, formatCellCached(item.data[col.actualColIdx], col.actualColIdx), $event)"
                       :data-visible-col-index="col.visibleColIdx"
                       @contextmenu="onCellContext(item.id, item.displayIndex, col.actualColIdx, col.visibleColIdx)"
                     >
                       <template v-if="editingCell?.rowId === item.id && editingCell?.col === col.actualColIdx">
                         <TemporalCellEditor v-if="temporalEditorKindForColumn(col.actualColIdx)" v-model="editValue" :kind="temporalEditorKindForColumn(col.actualColIdx)!" @cancel="cancelEdit" @commit="commitGridEdit" />
                         <EnumCellEditor v-else-if="isEnumGridColumn(col.actualColIdx)" v-model="editValue" :values="enumValuesForGridColumn(col.actualColIdx)" :nullable="isEnumGridColumnNullable(col.actualColIdx)" @cancel="cancelEdit" @commit="commitGridEdit" />
+                        <textarea
+                          v-else-if="cellUsesExpandedEditor(item.id, col.actualColIdx)"
+                          v-model="editValue"
+                          data-expanded-cell-editor="true"
+                          rows="1"
+                          :inputmode="cellEditInputModeForColumn(col.actualColIdx)"
+                          autocapitalize="off"
+                          autocorrect="off"
+                          spellcheck="false"
+                          class="cell-edit-input cell-edit-input--expanded absolute left-0 top-0 min-h-full bg-background px-2.5 py-1 text-[13px] leading-[18px] outline-none z-10"
+                          @blur="commitEditFromBlur"
+                          @click.stop
+                          @focus="onCellEditTextareaInput"
+                          @input="onCellEditTextareaInput"
+                          @keydown.stop="onEditKeydown"
+                          @paste.stop="onCellEditTextareaPaste"
+                        />
                         <input
                           v-else
                           v-model="editValue"
+                          :inputmode="cellEditInputModeForColumn(col.actualColIdx)"
                           autocapitalize="off"
                           autocorrect="off"
                           spellcheck="false"
                           class="cell-edit-input absolute inset-0 bg-background border-2 border-primary px-2.5 py-0 text-[13px] leading-[22px] outline-none z-10"
                           @blur="commitEditFromBlur"
                           @click.stop
+                          @input="onCellEditTextareaInput"
                           @keydown.stop="onEditKeydown"
-                          @paste.stop
+                          @paste.stop="onCellEditTextareaPaste"
                         />
                       </template>
                       <template v-else>
@@ -8810,6 +9138,18 @@ const gridContextMenuItems = computed<ContextMenuItem[]>(() => {
   contain: layout style paint;
 }
 
+[data-grid-root].data-grid--editing-cell .data-grid-scroller :deep(.vue-recycle-scroller__item-view),
+[data-grid-root].data-grid--editing-cell .transpose-grid-scroller :deep(.vue-recycle-scroller__item-view) {
+  contain: layout style;
+  overflow: visible;
+}
+
+[data-grid-root] .data-grid-scroller :deep(.vue-recycle-scroller__item-view:has(.cell-edit-input--expanded)),
+[data-grid-root] .transpose-grid-scroller :deep(.vue-recycle-scroller__item-view:has(.cell-edit-input--expanded)) {
+  z-index: 80 !important;
+  overflow: visible;
+}
+
 .data-grid-scroller.is-scrolling :deep(.vue-recycle-scroller__item-view) {
   pointer-events: none;
 }
@@ -8896,6 +9236,58 @@ const gridContextMenuItems = computed<ContextMenuItem[]>(() => {
 
 .cell-edit-input {
   font-family: inherit;
+}
+
+.cell-edit-input--expanded {
+  left: 7px;
+  width: calc(100% - 14px);
+  min-height: var(--cell-edit-min-height, 54px);
+  max-height: var(--cell-edit-max-height, calc(9.5lh + 10px));
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 24%, transparent) transparent;
+  resize: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background-color: var(--background);
+  background-color: color-mix(in oklab, var(--background) 96%, var(--primary) 4%);
+  border: 1px solid color-mix(in oklab, var(--primary) 62%, var(--border));
+  border-radius: 6px;
+  z-index: 90;
+  box-shadow:
+    0 28px 72px rgb(0 0 0 / 34%),
+    0 12px 30px rgb(0 0 0 / 24%),
+    0 3px 10px rgb(0 0 0 / 18%),
+    0 0 0 1px var(--background),
+    inset 0 0 0 1px color-mix(in oklab, var(--background) 70%, transparent);
+}
+
+:global(.dark) .cell-edit-input--expanded {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--foreground) 26%, transparent),
+    0 0 34px color-mix(in oklab, var(--foreground) 24%, transparent),
+    0 0 70px color-mix(in oklab, var(--foreground) 14%, transparent),
+    0 24px 64px rgb(0 0 0 / 42%),
+    inset 0 0 0 1px color-mix(in oklab, var(--background) 58%, transparent);
+}
+
+.cell-edit-input--expanded::-webkit-scrollbar {
+  width: 4px;
+}
+
+.cell-edit-input--expanded::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--foreground) 24%, transparent);
+}
+
+.cell-edit-input--expanded:hover::-webkit-scrollbar-thumb,
+.cell-edit-input--expanded:focus::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--foreground) 42%, transparent);
+}
+
+.cell-edit-input--expanded:hover::-webkit-scrollbar,
+.cell-edit-input--expanded:focus::-webkit-scrollbar {
+  width: 6px;
 }
 
 .canvas-grid-overlay {
